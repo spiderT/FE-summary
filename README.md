@@ -291,6 +291,48 @@ for (var i = 1; i <= 5; i++) {
 
 首先使用了立即执行函数将 i 传入函数内部，这个时候值就被固定在了参数 j 上面不会改变，当下次执行 timer 这个闭包的时候，就可以使用外部函数的变量 j，从而达到目的。  
 
+第二种就是使用 setTimeout 的第三个参数，这个参数会被当成 timer 函数的参数传入。  
+
+```js
+for (var i = 1; i <= 5; i++) {
+  setTimeout(
+    function timer(j) {
+      console.log(j)
+    },
+    i * 1000,
+    i
+  )
+}
+```
+
+第三种就是使用 let 定义 i 来解决问题了
+
+```js
+for (let i = 1; i <= 5; i++) {
+  setTimeout(function timer() {
+    console.log(i)
+  }, i * 1000)
+}
+```
+
+由于 let i = xxx 为块级别作用域，因而这一情况下的循环展开结果为：
+
+```js
+{
+    let i = 1;
+    setTimeout( timer, 1 * 1000 );
+}
+{
+    let i = 2;
+    setTimeout( timer, 2 * 1000 );
+}
+{
+    let i = 3;
+    setTimeout( timer, 3 * 1000 );
+}
+```
+
+
 
 
 
