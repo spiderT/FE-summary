@@ -845,6 +845,21 @@ console.log(p1.hosts); // => undefiend
 console.log(p2.hosts); // => cannot read property 'hosts' of undefined
 ```
 
+## 6. 手写promise
+
+## 7. 手写 call、apply 及 bind 函数
+
+### 7.1. call
+
+### 7.2. apply
+
+### 7.3. bind
+
+## 8. 垃圾回收机制
+
+### 8.1. 新生代算法
+
+### 8.2. 老生代算法
 
 
 
