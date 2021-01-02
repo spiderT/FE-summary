@@ -49,6 +49,26 @@
   - [8. 垃圾回收机制](#8-垃圾回收机制)
     - [8.1. 新生代算法](#81-新生代算法)
     - [8.2. 老生代算法](#82-老生代算法)
+  - [9. 浏览器缓存机制](#9-浏览器缓存机制)
+    - [9.1. 缓存位置](#91-缓存位置)
+      - [9.1.1. Service Worker](#911-service-worker)
+        - [如何使用](#如何使用)
+        - [注意事项](#注意事项)
+        - [Service Worker优势及典型应用场景](#service-worker优势及典型应用场景)
+      - [9.1.2. Memory Cache](#912-memory-cache)
+      - [9.1.3. Disk Cache](#913-disk-cache)
+      - [9.1.4. Push Cache](#914-push-cache)
+        - [实现方法](#实现方法)
+      - [9.1.5. 网络请求](#915-网络请求)
+    - [9.2. 缓存过程分析](#92-缓存过程分析)
+    - [9.3. 强缓存](#93-强缓存)
+      - [9.3.1. Expires](#931-expires)
+      - [9.3.2. Cache-Control](#932-cache-control)
+    - [9.4. 协商缓存](#94-协商缓存)
+    - [9.5. 缓存机制](#95-缓存机制)
+    - [9.6. 实际场景应用缓存策略](#96-实际场景应用缓存策略)
+    - [9.7. 用户行为对浏览器缓存的影响](#97-用户行为对浏览器缓存的影响)
+  - [10. https http2 http3](#10-https-http2-http3)
 
 ## 1. 类型
 
@@ -1431,9 +1451,79 @@ newPromise.then((data => {
 
 ### 7.1. call
 
+- 首先 context 为可选参数，如果不传的话默认上下文为 window
+- 接下来给 context 创建一个 fn 属性，并将值设置为需要调用的函数
+- 因为 call 可以传入多个参数作为调用函数的参数，所以需要将参数剥离出来
+- 然后调用函数并将对象上的函数删除
+
+```js
+Function.prototype.myCall = function (context) {
+  // this指向调用myCall的对象
+  if (typeof this !== "function") {
+    throw new TypeError("Error");
+  }
+  context = context || window;
+  context.fn = this;
+  const args = [...arguments].slice(1);
+  const result = context.fn(...args);
+  delete context.fn;
+  return result;
+};
+```
+
 ### 7.2. apply
 
+apply和call实现类似，不同的就是参数的处理
+
+```js
+Function.prototype.myApply = function (context) {
+  if (typeof this !== "function") {
+    throw new TypeError("Error");
+  }
+  context = context || window;
+  context.fn = this;
+  let result;
+  // 处理参数和 call 有区别
+  if (arguments[1]) {
+    result = context.fn(...arguments[1]);
+  } else {
+    result = context.fn();
+  }
+  delete context.fn;
+  return result;
+};
+```
+
 ### 7.3. bind
+
+bind 需要返回一个函数，需要判断一些边界问题  
+
+bind 返回了一个函数，对于函数来说有两种方式调用，一种是直接调用，一种是通过 new 的方式  
+
+- 对于直接调用来说，选择了 apply 的方式实现，但是对于参数需要注意以下情况：因为 bind 可以实现类似这样的代码 f.bind(obj, 1)(2)，所以我们需要将两边的参数拼接起来，于是就有了这样的实现 args.concat(...arguments)  
+
+- 对于 new 的情况来说，不会被任何方式改变 this，所以对于这种情况我们需要忽略传入的 this  
+
+```js
+// bind后的函数会返回一个函数
+Function.prototype.myBind = function (context) {
+  if (typeof this !== "function") {
+    throw new TypeError(this + "must be a function");
+  }
+  // 存储函数本身
+  const _this = this;
+  // 去除thisArg的其他参数 转成数组
+  const args = [...arguments].slice(1);
+  // 返回一个函数
+  return function F() {
+    // 可能返回了一个构造函数，可以 new F()，所以需要判断
+    if (this instanceof F) {
+      return new _this(...args, ...arguments);
+    }
+    return _this.apply(context, args.concat(...arguments));
+  };
+};
+```
 
 ## 8. 垃圾回收机制
 
@@ -1441,14 +1531,318 @@ newPromise.then((data => {
 
 ### 8.2. 老生代算法
 
+## 9. 浏览器缓存机制
+
+demo 路径： demos/9-cache  
+
+浏览器的三级缓存原理：  
+
+先去内存看，如果有，直接加载  
+如果内存没有，择取硬盘获取，如果有直接加载  
+如果硬盘也没有，那么就进行网络请求  
+加载到的资源缓存到硬盘和内存  
+
+### 9.1. 缓存位置
+
+1. Service Worker  
+2. Memory Cache  
+3. Disk Cache  
+4. Push Cache  
+5. 网络请求  
+
+#### 9.1.1. Service Worker
+
+Service Worker 是运行在浏览器背后的独立线程，一般可以用来实现缓存功能。使用 Service Worker的话，传输协议必须为 HTTPS。因为 Service Worker 中涉及到请求拦截，所以必须使用 HTTPS 协议来保障安全。  
+
+Service Worker 的缓存与浏览器其他内建的缓存机制不同，它可以让我们自由控制缓存哪些文件、如何匹配缓存、如何读取缓存，并且缓存是持续性的。  
+
+Service Worker 实现缓存功能一般分为三个步骤：首先需要先注册 Service Worker，然后监听到 install 事件以后就可以缓存需要的文件，那么在下次用户访问的时候就可以通过拦截请求的方式查询是否存在缓存，存在缓存的话就可以直接读取缓存文件，否则就去请求数据.  
+
+当 Service Worker 没有命中缓存的时候，我们需要去调用 fetch 函数获取数据。也就是说，如果我们没有在 Service Worker 命中缓存的话，会根据缓存查找优先级去查找数据。但是不管我们是从 Memory Cache 中还是从网络请求中获取的数据，浏览器都会显示我们是从 Service Worker 中获取的内容。  
+
+##### 如何使用
+
+[Service Worker API](https://developer.mozilla.org/zh-CN/docs/Web/API/Service_Worker_API)  
+
+1. 注册Service worker 在你的index.html加入以下内容
+
+```js
+/* 判断当前浏览器是否支持serviceWorker */
+if ('serviceWorker' in navigator) {
+    /* 当页面加载完成就创建一个serviceWorker */
+    window.addEventListener('load', function () {
+        /* 创建并指定对应的执行内容 */
+        /* scope 参数是可选的，可以用来指定你想让 service worker 控制的内容的子目录。 在这个例子里，我们指定了 '/'，表示 根网域下的所有内容。这也是默认值。 */
+        navigator.serviceWorker.register('./serviceWorker.js', {scope: './'})
+            .then(function (registration) {
+
+                console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            })
+            .catch(function (err) {
+
+                console.log('ServiceWorker registration failed: ', err);
+            });
+    });
+}
+```
+
+2. 安装worker：在我们指定的处理程序serviceWorker.js中书写对应的安装及拦截逻辑
+
+```js
+// 监听安装事件，install 事件一般是被用来设置你的浏览器的离线缓存逻辑
+this.addEventListener('install', function (event) {
+    /* 通过这个方法可以防止缓存未完成，就关闭serviceWorker */
+    event.waitUntil(
+        /* 创建一个名叫V1的缓存版本 */
+        caches.open('v1').then(function (cache) {
+            /* 指定要缓存的内容，地址为相对于跟域名的访问路径 */
+            return cache.addAll([
+                './index.html'
+            ]);
+        })
+    );
+});
+
+/* 注册fetch事件，拦截全站的请求 */
+this.addEventListener('fetch', function(event) {
+  event.respondWith(
+    // magic goes here
+      
+      /* 在缓存中匹配对应请求资源直接返回 */
+    caches.match(event.request)
+  );
+});
+```
+
+##### 注意事项
+
+1、Service Worker线程运行的是js，有着独立的js环境，不能直接操作DOM树，但可以通过postMessage与其服务的前端页面通信。  
+
+2、Service Worker服务的不是单个页面，它服务的是当前网络path下所有的页面，只要当前path 的Service Worker被安装，用户访问当前path下的任意页面均会启动该Service Worker。当一段时间没有事件过来，浏览器会自动停止Service Worker来节约资源，所以Service Worker线程中不能保存需要持久化的信息。  
+
+3、Service Worker安装是在后台悄悄执行，更新也是如此。每次新唤起Service Worker线程，它都会去检查Service Worker脚本是否有更新，如有一个字节的变化，它都会新起一个Service Worker线程类似于安装一样去安装新的Service Worker脚本，当旧的Service Worker所服务的页面都关闭后，新的Service Worker便会生效。  
+
+##### Service Worker优势及典型应用场景
+
+1、离线缓存：可以将H5应用中不变化的资源或者很少变化的资源长久的存储在用户端，提升加载速度、降低流量消耗、降低服务器压力。如中重度的H5游戏、框架数据独立的web资讯客户端、web邮件客户端等  
+
+2、消息推送：激活沉睡的用户，推送即时消息、公告通知，激发更新等。如web资讯客户端、web即时通讯工具、h5游戏等运营产品。  
+
+3、事件同步：确保web端产生的任务即使在用户关闭了web页面也可以顺利完成。如web邮件客户端、web即时通讯工具等。  
+
+4、定时同步：周期性的触发Service Worker脚本中的定时同步事件，可借助它提前刷新缓存内容。如web资讯客户端。  
+
+#### 9.1.2. Memory Cache
+
+Memory Cache 也就是内存中的缓存，主要包含的是当前中页面中已经抓取到的资源,例如页面上已经下载的样式、脚本、图片等。读取内存中的数据肯定比磁盘快,内存缓存虽然读取高效，可是缓存持续性很短，会随着进程的释放而释放。 一旦我们关闭 Tab 页面，内存中的缓存也就被释放了。
+
+那么既然内存缓存这么高效，我们是不是能让数据都存放在内存中呢？  
+这是不可能的。计算机中的内存一定比硬盘容量小得多，操作系统需要精打细算内存的使用，所以能让我们使用的内存必然不多。  
+
+当我们访问过页面以后，再次刷新页面，可以发现很多数据都来自于内存缓存  
+
+![fe7](images/fe7.png)
+
+内存缓存中有一块重要的缓存资源是preloader相关指令（例如<link rel="prefetch">）下载的资源。总所周知preloader的相关指令已经是页面优化的常见手段之一，它可以一边解析js/css文件，一边网络请求下一个资源。  
+
+需要注意的事情是，内存缓存在缓存资源时并不关心返回资源的HTTP缓存头Cache-Control是什么值，同时资源的匹配也并非仅仅是对URL做匹配，还可能会对Content-Type，CORS等其他特征做校验。  
+
+#### 9.1.3. Disk Cache
+
+Disk Cache 也就是存储在硬盘中的缓存，读取速度慢点，但是什么都能存储到磁盘中，比之 Memory Cache 胜在容量和存储时效性上。  
+
+在所有浏览器缓存中，Disk Cache 覆盖面基本是最大的。它会根据 HTTP Herder 中的字段判断哪些资源需要缓存，哪些资源可以不请求直接使用，哪些资源已经过期需要重新请求。并且即使在跨站点的情况下，相同地址的资源一旦被硬盘缓存下来，就不会再次去请求数据。绝大部分的缓存都来自 Disk Cache，关于 HTTP 的协议头中的缓存字段，我们会在下文进行详细介绍。  
+
+浏览器会把哪些文件丢进内存中？哪些丢进硬盘中？  
+关于这点，网上说法不一，不过以下观点比较靠得住：  
+
+对于大文件来说，大概率是不存储在内存中的，反之优先  
+当前系统内存使用率高的话，文件优先存储进硬盘  
+
+#### 9.1.4. Push Cache
+
+参考：[HTTP/2 服务器推送（Server Push）教程](https://www.ruanyifeng.com/blog/2018/03/http2_server_push.html), by  阮一峰  
+
+Push Cache（推送缓存）是 HTTP/2 中的内容，当以上三种缓存都没有命中时，它才会被使用。它只在会话（Session）中存在，一旦会话结束就被释放，并且缓存时间也很短暂，在Chrome浏览器中只有5分钟左右，同时它也并非严格执行HTTP头中的缓存指令。  
+
+[HTTP/2 push is tougher than I thought](https://jakearchibald.com/2017/h2-push-tougher-than-i-thought/) 这篇文章，文章中的几个结论：
+
+所有的资源都能被推送，并且能够被缓存,但是 Edge 和 Safari 浏览器支持相对比较差。  
+可以推送 no-cache 和 no-store 的资源。  
+一旦连接被关闭，Push Cache 就被释放。  
+多个页面可以使用同一个HTTP/2的连接，也就可以使用同一个Push Cache。这主要还是依赖浏览器的实现而定，出于对性能的考虑，有的浏览器会对相同域名但不同的tab标签使用同一个HTTP连接。  
+Push Cache 中的缓存只能被使用一次。  
+浏览器可以拒绝接受已经存在的资源推送。  
+你可以给其他域名推送资源。  
+
+##### 实现方法
+
+服务器推送（server push）是 HTTP/2 协议里面，唯一一个需要开发者自己配置的功能。其他功能都是服务器和浏览器自动实现，不需要开发者关心。  
+
+![fe8](images/fe8.png)
+
+服务器推送（server push）指的是，还没有收到浏览器的请求，服务器就把各种资源推送给浏览器。  
+
+比如，浏览器只请求了index.html，但是服务器把index.html、style.css、example.png全部发送给浏览器。这样的话，只需要一轮 HTTP 通信，浏览器就得到了全部资源，提高了性能。  
+
+打开配置文件conf/conf.d/default.conf，将 443 端口的部分改成下面的样子。其实就是最后多了两行http2_push命令。它的意思是，如果用户请求根路径/，就推送style.css和example.png。  
+
+```conf
+server {
+    listen 443 ssl http2;
+    server_name  localhost;
+
+    ssl                      on;
+    ssl_certificate          /etc/nginx/certs/example.crt;
+    ssl_certificate_key      /etc/nginx/certs/example.key;
+
+    ssl_session_timeout  5m;
+
+    ssl_ciphers HIGH:!aNULL:!MD5;
+    ssl_protocols SSLv3 TLSv1 TLSv1.1 TLSv1.2;
+    ssl_prefer_server_ciphers   on;
+
+    location / {
+      root   /usr/share/nginx/html;
+      index  index.html index.htm;
+      http2_push /style.css;
+      http2_push /example.png;
+    }
+}
+```
+
+启动容器
+
+```text
+docker container run \
+  --rm \
+  --name mynginx \
+  --volume "$PWD/html":/usr/share/nginx/html \
+  --volume "$PWD/conf":/etc/nginx \
+  -p 127.0.0.2:8080:80 \
+  -p 127.0.0.2:8081:443 \
+  -d \
+  nginx
+```
+
+打开浏览器，访问 https://127.0.0.2:8081 。浏览器会提示证书不安全，不去管它，继续访问，就能看到网页了。  
+
+网页上看不出来服务器推送，必须打开"开发者工具"，切换到 Network 面板，就可以看到其实只发出了一次请求，style.css和example.png都是推送过来的。  
+
+![fe9](images/fe9.png)  
+
+查看完毕，关闭容器。
+
+```text
+docker container stop mynginx
+```
+
+上面的服务器推送，需要写在服务器的配置文件里面。这显然很不方便，每次修改都要重启服务，而且应用与服务器的配置不应该混在一起。  
+
+服务器推送还有另一个实现方法，就是后端应用产生 HTTP 回应的头信息Link命令。服务器发现有这个头信息，就会进行服务器推送。[HTTP/2 Server Push with Node.js](https://blog.risingstack.com/node-js-http-2-push/)  [nodejs实现http2推送信息](https://cloud.tencent.com/developer/article/1582441)  
+
+```js
+const http2 = require("http2");
+const server = http2.createSecureServer({ cert, key }, onRequest);
+
+function push(stream, filePath) {
+  const { file, headers } = getFile(filePath);
+  const pushHeaders = { [HTTP2_HEADER_PATH]: filePath };
+
+  stream.pushStream(pushHeaders, (pushStream) => {
+    pushStream.respondWithFD(file, headers);
+  });
+}
+
+function onRequest(req, res) {
+  // Push files with index.html
+  if (reqPath === "/index.html") {
+    push(res.stream, "bundle1.js");
+    push(res.stream, "bundle2.js");
+  }
+
+  // Serve file
+  res.stream.respondWithFD(file.fileDescriptor, file.headers);
+}
+```
+
+```text
+Link: </styles.css>; rel=preload; as=style, </example.png>; rel=preload; as=image
+```
+
+这时，Nginx 的配置改成下面这样。
+
+```text
+server {
+    listen 443 ssl http2;
+
+    # ...
+
+    root /var/www/html;
+
+    location = / {
+        proxy_pass http://upstream;
+        http2_push_preload on;
+    }
+}
+```
+
+服务器推送有一个很麻烦的问题。所要推送的资源文件，如果浏览器已经有缓存，推送就是浪费带宽。即使推送的文件版本更新，浏览器也会优先使用本地缓存。  
+
+一种解决办法是，只对第一次访问的用户开启服务器推送。下面是 Nginx 官方给出的示例，根据 Cookie 判断是否为第一次访问。  
+
+```conf
+server {
+    listen 443 ssl http2 default_server;
+
+    ssl_certificate ssl/certificate.pem;
+    ssl_certificate_key ssl/key.pem;
+
+    root /var/www/html;
+    http2_push_preload on;
+
+    location = /demo.html {
+        add_header Set-Cookie "session=1";
+        add_header Link $resources;
+    }
+}
+
+
+map $http_cookie $resources {
+    "~*session=1" "";
+    default "</style.css>; as=style; rel=preload";
+}
+```
+
+#### 9.1.5. 网络请求
+
+如果所有缓存都没有命中的话，那么只能发起请求来获取资源了。那么为了性能上的考虑，大部分的接口都应该选择好缓存策略，接下来我们就来学习缓存策略这部分的内容
+
+### 9.2. 缓存过程分析
+
+浏览器与服务器通信的方式为应答模式，即是：浏览器发起HTTP请求 – 服务器响应该请求，那么浏览器怎么确定一个资源该不该缓存，如何去缓存呢？浏览器第一次向服务器发起该请求后拿到请求结果后，将请求结果和缓存标识存入浏览器缓存，浏览器对于缓存的处理是根据第一次请求资源时返回的响应头来确定的。具体过程如下图：
+
+![fe10](images/fe10.png)
+
+### 9.3. 强缓存
+
+强缓存：不会向服务器发送请求，直接从缓存中读取资源，在chrome控制台的Network选项中可以看到该请求返回200的状态码，并且Size显示from disk cache或from memory cache。强缓存可以通过设置两种 HTTP Header 实现：Expires 和 Cache-Control。
+
+#### 9.3.1. Expires
 
 
 
+#### 9.3.2. Cache-Control
 
+### 9.4. 协商缓存
 
+### 9.5. 缓存机制
 
+### 9.6. 实际场景应用缓存策略
 
+### 9.7. 用户行为对浏览器缓存的影响
 
+## 10. https http2 http3
 
 
 
