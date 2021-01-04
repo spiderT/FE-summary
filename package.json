@@ -1,0 +1,23 @@
+{
+  "name": "FE-summary",
+  "version": "1.0.0",
+  "description": "- [前端总结](#前端总结)   - [1. 类型](#1-类型)     - [1.1. 原始（Primitive）类型](#11-原始primitive类型)     - [1.2. 对象（Object）类型](#12-对象object类型)     - [1.3. typeof vs instanceof](#13-typeof-vs-instanceof)     - [1.4. 类型转换](#14-类型转换)       - [转Boolean](#转boolean)       - [对象转原始类型](#对象转原始类型)     - [1.5. 四则运算符](#15-四则运算符)     - [1.6. 比较运算符](#16-比较运算符)   - [2. this](#2-this)     - [bind](#bind)   - [3. == vs ===](#3--vs-)   - [4. 闭包](#4-闭包)   - [5. JavaScript 原型](#5-javascript-原型)     - [5.1. __proto__  constructor prototype](#51-proto--constructor-prototype)       - [5.1.1. __proto__](#511-proto)       - [5.1.2. constructor和prototype](#512-constructor和prototype)     - [5.2. 原型链](#52-原型链)     - [5.3. ES6 class 和构造器的关系](#53-es6-class-和构造器的关系)       - [5.3.1. ES6 class](#531-es6-class)       - [5.3.2. extends 继承](#532-extends-继承)     - [5.4. 原型继承](#54-原型继承)     - [5.5. 和原型相关语法特性](#55-和原型相关语法特性)       - [5.5.1. new 运算符原理](#551-new-运算符原理)       - [5.5.2. instanceof 运算符原理](#552-instanceof-运算符原理)     - [5.6. 原型污染](#56-原型污染)       - [5.6.1. 性能问题](#561-性能问题)       - [5.6.2. 导致意外的逻辑 bug](#562-导致意外的逻辑-bug)       - [5.6.3. 预防原型污染](#563-预防原型污染)         - [Object.create(null)](#objectcreatenull)         - [Object.freeze(obj)](#objectfreezeobj)   - [6. 手写promise](#6-手写promise)     - [then 的链式调用&值穿透特性](#then-的链式调用值穿透特性)     - [测试 Promise 是否符合规范](#测试-promise-是否符合规范)     - [Promise 的 API](#promise-的-api)       - [Promise.resolve](#promiseresolve)       - [Promise.reject](#promisereject)       - [Promise.prototype.catch](#promiseprototypecatch)       - [Promise.prototype.finally](#promiseprototypefinally)       - [Promise.all](#promiseall)       - [Promise.race](#promiserace)   - [7. 手写 call、apply 及 bind 函数](#7-手写-callapply-及-bind-函数)     - [7.1. call](#71-call)     - [7.2. apply](#72-apply)     - [7.3. bind](#73-bind)   - [8. 垃圾回收机制](#8-垃圾回收机制)     - [8.1. 新生代算法](#81-新生代算法)     - [8.2. 老生代算法](#82-老生代算法)   - [9. 浏览器缓存机制](#9-浏览器缓存机制)     - [9.1. 缓存位置](#91-缓存位置)       - [9.1.1. Service Worker](#911-service-worker)         - [如何使用](#如何使用)         - [注意事项](#注意事项)         - [Service Worker优势及典型应用场景](#service-worker优势及典型应用场景)       - [9.1.2. Memory Cache](#912-memory-cache)       - [9.1.3. Disk Cache](#913-disk-cache)       - [9.1.4. Push Cache](#914-push-cache)         - [实现方法](#实现方法)       - [9.1.5. 网络请求](#915-网络请求)     - [9.2. 缓存过程分析](#92-缓存过程分析)     - [9.3. 强缓存](#93-强缓存)       - [9.3.1. Expires](#931-expires)       - [9.3.2. Cache-Control](#932-cache-control)     - [9.4. 协商缓存](#94-协商缓存)       - [9.4.1. Last-Modified和If-Modified-Since](#941-last-modified和if-modified-since)       - [9.4.2. ETag和If-None-Match](#942-etag和if-none-match)     - [9.5. 缓存机制](#95-缓存机制)     - [9.6. 实际场景应用缓存策略](#96-实际场景应用缓存策略)       - [9.6.1. 频繁变动的资源](#961-频繁变动的资源)       - [9.6.2. 不常变化的资源](#962-不常变化的资源)     - [9.7. 用户行为对浏览器缓存的影响](#97-用户行为对浏览器缓存的影响)   - [10. https http1 http2 http3](#10-https-http1-http2-http3)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/spiderT/FE-summary.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/spiderT/FE-summary/issues"
+  },
+  "homepage": "https://github.com/spiderT/FE-summary#readme",
+  "dependencies": {
+    "http2": "^3.3.7"
+  }
+}
