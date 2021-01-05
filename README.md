@@ -83,6 +83,11 @@
       - [10.3.1. QUIC](#1031-quic)
     - [10.4. https](#104-https)
   - [11. 浏览器渲染原理](#11-浏览器渲染原理)
+  - [12. webpack5](#12-webpack5)
+    - [12.1. 功能清除](#121-功能清除)
+    - [12.2. 长期缓存](#122-长期缓存)
+    - [12.3. 持久缓存](#123-持久缓存)
+    - [12.4. 模块联邦 Module Federation](#124-模块联邦-module-federation)
 
 ## 1. 类型
 
@@ -2321,11 +2326,161 @@ HTTP 协议被认为不安全是因为传输过程容易被监听者勾线监听
 
 ## 11. 浏览器渲染原理
 
-
-
-
-
-
-
-
 参考资料：[DOM操作成本到底高在哪儿](https://segmentfault.com/a/1190000014070240)  
+
+## 12. webpack5
+
+### 12.1. 功能清除
+
+1. 语法废弃
+  
+require.include已被废弃，使用时默认会发出警告。  
+
+可以通过 Rule.parser.requireInclude 将行为改为允许、废弃或禁用。  
+
+2. 不再为 Node.js 模块 自动引用 Polyfills
+
+在实际构建时，如果遇到类似于const {Buffer} = require('buffer')的代码，会提示新版本不会再对它进行自动的兼容，由你来选择是否安装相应的库并通过resolve.alias配置：  
+
+```js
+{
+    resolve: {
+        alias: {
+            buffer: 'buffer',
+        },
+    },
+}
+```
+
+但是，Webpack只解决引入模块的代码， 不解决全局变量的检测，这是和之前版本最大的区别。比如有代码是这样的：
+
+```js
+exports.isBuffer = Buffer.isBuffer;
+```
+
+Webpack 5并不会认为这里用到了Buffer这个对象需要处理兼容性，而是正常地进行打包，也不提示开发者。直到系统运行时，才会出现Buffer is not defined这样的错误。同时，由于内置的NodeSourcePlugin已经修改了实现，现在只会处理global这一个变量，所以即便把这个插件找回来也不会再帮你修复这些全局变量的使用了.  
+
+在这里推荐babel-plugin-import-globals这个babel插件，它可以找到相关的全局变量并进行处理。
+
+```js
+{
+    loader: require.resolve('babel-loader'),
+    options: {
+        sourceType: 'unambiguous', // 这个一定要配，自动处理es和js模块
+        compact: false, // 这个建议配，能提升性能
+        plugins: [
+            [
+                require.resolve('babel-plugin-import-globals'),
+                {
+                    'process': require.resolve('process'),
+                    'Buffer': {moduleName: require.resolve('buffer'), exportName: 'Buffer'},
+                },
+            ],
+        ],
+    },
+}
+```
+
+将这个配置加到node_modules下的JavaScript文件上就行，如：
+
+```js
+{
+    test: /\/jsx?$/,
+    include: /node_modules/,
+    use: [loader],
+}
+```
+
+当然这会让所有第三方的代码也过babel的处理（虽然只有一个插件），会被babel解析，一定程度上会影响构建的速度。babel处理的速度与原来的NodeSourcePlugin的处理孰优孰劣我也无法再做比较了。
+
+除此之外，在resolve.alias下也需要配上对应的一些兼容库：
+
+```js
+{
+    crypto: 'crypto-browserify',
+    stream: 'stream-browserify',
+    vm: 'vm-browserify',
+}
+```
+
+### 12.2. 长期缓存
+
+1. 确定的 Chunk、模块 ID 和导出名称
+
+新增了长期缓存的算法。这些算法在生产模式下是默认启用的。  
+
+chunkIds: "deterministic" moduleIds: "deterministic" mangleExports: "deterministic"  
+
+该算法以确定性的方式为模块和分块分配短的（3 或 5 位）数字 ID， 这是包大小和长期缓存之间的一种权衡。  
+
+moduleIds/chunkIds/mangleExports: false 禁用默认行为，你可以通过插件提供一个自定义算法。请注意，在 webpack 4 中，moduleIds/chunkIds: false 如果没有自定义插件，则可以正常运行，而在 webpack 5 中，你必须提供一个自定义插件。  
+
+2. 真正的内容哈希
+
+当使用 [contenthash] 时，Webpack 5 将使用真正的文件内容哈希值。之前它 "只" 使用内部结构的哈希值。 当只有注释被修改或变量被重命名时，这对长期缓存会有积极影响。这些变化在压缩后是不可见的。  
+
+### 12.3. 持久缓存
+
+```js
+module.exports = {
+  cache: {
+    // 1. 将缓存类型设置为文件系统
+    type: 'filesystem',
+
+    buildDependencies: {
+      // 2. 将你的 config 添加为 buildDependency，以便在改变 config 时获得缓存无效
+      config: [__filename],
+
+      // 3. 如果你有其他的东西被构建依赖，你可以在这里添加它们
+      // 注意，webpack、加载器和所有从你的配置中引用的模块都会被自动添加
+    },
+  },
+};
+```
+
+但这样打开后，缓存会过于固定，引起一系列问题：  
+
+- mode之类的变化无法响应，缓存不会变。
+- 如果根据不同的场景，有不同的babel配置等，也同样不会感知，依然会用旧的缓存。
+- 使用DefinePlugin注入的动态内容，全部不会变化。
+
+而要处理这些“动态性”，我们需要2个东西。  
+
+第一个是cache.version的配置，这个配置可以告诉webpack内容有了变化，需要重新处理缓存，如mode或babel配置之类的，可以通过不同的version隔离开来。  
+
+最简单的cache.version的算法是webpack.config.js和node_modules/.yarn-integrity做一下哈希，但我们封装了webpack的能力，所以并不存在一个固定的webpack.config.js，就必须手动实现它，我们当前的算法是：  
+
+```js
+const computeCacheKey = (entry: BuildEntry): string => {
+    const hash = crypto.createHash('sha1');
+    hash.update(entry.usage); // 使用场景，如build、dev等
+    hash.update(entry.mode);
+    hash.update(entry.hostPackageName); // 主包名，会用在一些import语句上
+    hash.update(fs.readFileSync(path.join(entry.cwd, 'settings.js'))); // 用户的定制化配置
+    hash.update(fs.readFileSync(path.join(entry.cwd, 'node_modules', '.yarn-integrity'))); // 依赖信息
+    return hash.digest('hex');
+};
+```
+
+### 12.4. 模块联邦 Module Federation
+
+多个独立的构建可以组成一个应用程序，这些独立的构建之间不应该存在依赖关系，因此可以单独开发和部署它们。  
+
+官方demo: https://github.com/module-federation/module-federation-examples  
+
+
+
+
+
+
+
+
+
+
+
+
+参考资料：[Webpack 5 release (2020-10-10)](https://webpack.js.org/blog/2020-10-10-webpack-5-release/)  
+[从构建进程间缓存设计 谈 Webpack5 优化和工作原理](https://zhuanlan.zhihu.com/p/110995118)  
+[Webpack 5 升级实验](https://zhuanlan.zhihu.com/p/81122986)  
+[精读《Webpack5 新特性 - 模块联邦》](https://zhuanlan.zhihu.com/p/115403616)  
+

@@ -18,6 +18,9 @@
   },
   "homepage": "https://github.com/spiderT/FE-summary#readme",
   "dependencies": {
-    "http2": "^3.3.7"
+    "http2": "^3.3.7",
+    "lodash-es": "^4.17.20",
+    "webpack": "^5.11.1",
+    "webpack-cli": "^4.3.1"
   }
 }
