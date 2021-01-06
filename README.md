@@ -88,6 +88,21 @@
     - [12.2. 长期缓存](#122-长期缓存)
     - [12.3. 持久缓存](#123-持久缓存)
     - [12.4. 模块联邦 Module Federation](#124-模块联邦-module-federation)
+  - [13. react](#13-react)
+    - [13.1 原理（virtual DOM, Diff算法, fiber）](#131-原理virtual-dom-diff算法-fiber)
+      - [13.1.1. Virtual DOM](#1311-virtual-dom)
+      - [13.1.2. Fiber Reconciler](#1312-fiber-reconciler)
+      - [13.1.3. Renderer](#1313-renderer)
+    - [13.2. react hooks](#132-react-hooks)
+    - [13.3.  react router](#133--react-router)
+    - [13.4. 一些常用API](#134-一些常用api)
+      - [13.4.1. Error Boundaries](#1341-error-boundaries)
+      - [13.4.2. React.Lazy和React.Suspense](#1342-reactlazy和reactsuspense)
+        - [13.4.2.1. import原理](#13421-import原理)
+        - [13.4.2.2. React.Lazy原理](#13422-reactlazy原理)
+        - [13.4.2.3. React.Suspense原理](#13423-reactsuspense原理)
+    - [13.5. redux](#135-redux)
+    - [13.6. mobx](#136-mobx)
 
 ## 1. 类型
 
@@ -2326,6 +2341,8 @@ HTTP 协议被认为不安全是因为传输过程容易被监听者勾线监听
 
 ## 11. 浏览器渲染原理
 
+
+
 参考资料：[DOM操作成本到底高在哪儿](https://segmentfault.com/a/1190000014070240)  
 
 ## 12. webpack5
@@ -2468,19 +2485,385 @@ const computeCacheKey = (entry: BuildEntry): string => {
 
 官方demo: https://github.com/module-federation/module-federation-examples  
 
+```js
+const HtmlWebpackPlugin = require("html-webpack-plugin");
+const ModuleFederationPlugin = require("webpack/lib/container/ModuleFederationPlugin");
 
+module.exports = {
+  // other webpack configs...
+  plugins: [
+    new ModuleFederationPlugin({
+      name: "app_one_remote",
+      remotes: {
+        app_two: "app_two_remote",
+        app_three: "app_three_remote"
+      },
+      exposes: {
+        AppContainer: "./src/App"
+      },
+      shared: ["react", "react-dom", "react-router-dom"]
+    }),
+    new HtmlWebpackPlugin({
+      template: "./public/index.html",
+      chunks: ["main"]
+    })
+  ]
+};
+```
 
+模块联邦本身是一个普通的 Webpack 插件 ModuleFederationPlugin，插件有几个重要参数：
 
+1. name 当前应用名称，需要全局唯一。
+2. remotes 可以将其他项目的 name 映射到当前项目中。
+3. exposes 表示导出的模块，只有在此申明的模块才可以作为远程依赖被使用。
+4. shared 是非常重要的参数，制定了这个参数，可以让远程加载的模块对应依赖改为使用本地项目的 React 或 ReactDOM。  
 
+比如设置了 remotes: { app_tw0: "app_two_remote" }，在代码中就可以直接利用以下方式直接从对方应用调用模块：  
 
+```js
+import { Search } from "app_two/Search";
+```
 
+这个 app_two/Search 来自于 app_two 的配置：
 
+```js
+// app_two 的 webpack 配置
+export default {
+  plugins: [
+    new ModuleFederationPlugin({
+      name: "app_two",
+      library: { type: "var", name: "app_two" },
+      filename: "remoteEntry.js",
+      exposes: {
+        Search: "./src/Search"
+      },
+      shared: ["react", "react-dom"]
+    })
+  ]
+};
+```
 
-
-
+正是因为 Search 在 exposes 被导出，我们因此可以使用 [name]/[exposes_name] 这个模块，这个模块对于被引用应用来说是一个本地模块。  
 
 参考资料：[Webpack 5 release (2020-10-10)](https://webpack.js.org/blog/2020-10-10-webpack-5-release/)  
 [从构建进程间缓存设计 谈 Webpack5 优化和工作原理](https://zhuanlan.zhihu.com/p/110995118)  
 [Webpack 5 升级实验](https://zhuanlan.zhihu.com/p/81122986)  
-[精读《Webpack5 新特性 - 模块联邦》](https://zhuanlan.zhihu.com/p/115403616)  
+[Webpack 5 Module Federation: A game-changer in JavaScript architecture](https://indepth.dev/posts/1173/webpack-5-module-federation-a-game-changer-in-javascript-architecture)  
+
+## 13. react
+
+### 13.1 原理（virtual DOM, Diff算法, fiber）
+
+React 框架内部的运作可以分为 3 层：  
+
+Virtual DOM 层，描述页面长什么样。  
+Reconciler 层，负责调用组件生命周期方法，进行 Diff 运算等, 也叫Fiber Reconciler。  
+Renderer 层，根据不同的平台，渲染出相应的页面，比较常见的是 ReactDOM 和 ReactNative。  
+
+#### 13.1.1. Virtual DOM
+
+
+
+#### 13.1.2. Fiber Reconciler
+
+fiber: https://github.com/spiderT/tt-blog/blob/master/notes/react-fiber-reconciler.md
+
+#### 13.1.3. Renderer
+
+
+
+
+
+### 13.2. react hooks
+
+### 13.3.  react router
+
+前端路由本质就是监听 URL 的变化，然后匹配路由规则，显示相应的页面，并且无须刷新页面。目前前端使用的路由就只有两种实现方式
+
+- Hash 模式
+- History 模式  
+
+
+
+### 13.4. 一些常用API
+
+#### 13.4.1. Error Boundaries
+
+ErrorBoundary可以在任务子组件中捕获js错误，只需在根组件中定义一次，即可捕获所有子组件的错误。  
+然有以下4种错误除外：  
+
+1. 事件处理函数中使用try catch  
+2. 异步函数（setTimeout）  
+3. 服务端渲染  
+4. 当前ErrorBoundary抛出的错误  
+
+```js
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    // Update state so the next render will show the fallback UI.
+    return { hasError: true };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    // You can also log the error to an error reporting service
+    logErrorToMyService(error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      // You can render any custom fallback UI
+      return <h1>Something went wrong.</h1>;
+    }
+
+    return this.props.children; 
+  }
+}
+```
+
+```js
+<ErrorBoundary>
+  <MyWidget />
+</ErrorBoundary>
+```
+
+#### 13.4.2. React.Lazy和React.Suspense
+
+通过 import()、React.lazy 和 Suspense 共同一起实现了 React 的懒加载，也就是我们常说了运行时动态加载，即 OtherComponent 组件文件被拆分打包为一个新的包（bundle）文件，并且只会在 OtherComponent 组件渲染时，才会被下载到本地。  
+
+```js
+const OtherComponent = React.lazy(() => import('./OtherComponent'));
+
+function MyComponent() {
+  return (
+    // Displays <Spinner> until OtherComponent loads
+    <React.Suspense fallback={<Spinner />}>
+      <OtherComponent />
+    </React.Suspense>
+  );
+}
+
+```
+
+##### 13.4.2.1. import原理
+
+import() 函数是由TS39提出的一种动态加载模块的规范实现，其返回是一个 promise。
+
+```js
+function importModule(url) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    const tempGlobal = "__tempModuleLoadingVariable" + Math.random().toString(32).substring(2);
+    script.type = "module";
+    script.textContent = `import * as m from "${url}"; window.${tempGlobal} = m;`;
+
+    script.onload = () => {
+      resolve(window[tempGlobal]);
+      delete window[tempGlobal];
+      script.remove();
+    };
+
+    script.onerror = () => {
+      reject(new Error("Failed to load module script with URL " + url));
+      delete window[tempGlobal];
+      script.remove();
+    };
+
+    document.documentElement.appendChild(script);
+  });
+}
+```
+
+当 Webpack 解析到该import()语法时，会自动进行代码分割。
+
+##### 13.4.2.2. React.Lazy原理
+
+17.0.2版本的源码  
+
+```js
+export function lazy<T>(
+  ctor: () => Thenable<{default: T, ...}>,
+): LazyComponent<T, Payload<T>> {
+  const payload: Payload<T> = {
+    // We use these fields to store the result.
+    _status: -1,
+    _result: ctor,
+  };
+
+  const lazyType: LazyComponent<T, Payload<T>> = {
+    $$typeof: REACT_LAZY_TYPE,
+    _payload: payload,
+    _init: lazyInitializer,
+  };
+
+  if (__DEV__) {
+    // In production, this would just set it on the object.
+    let defaultProps;
+    let propTypes;
+    // $FlowFixMe
+    Object.defineProperties(lazyType, {
+      defaultProps: {
+        configurable: true,
+        get() {
+          return defaultProps;
+        },
+        set(newDefaultProps) {
+          console.error(
+            'React.lazy(...): It is not supported to assign `defaultProps` to ' +
+              'a lazy component import. Either specify them where the component ' +
+              'is defined, or create a wrapping component around it.',
+          );
+          defaultProps = newDefaultProps;
+          // Match production behavior more closely:
+          // $FlowFixMe
+          Object.defineProperty(lazyType, 'defaultProps', {
+            enumerable: true,
+          });
+        },
+      },
+      propTypes: {
+        configurable: true,
+        get() {
+          return propTypes;
+        },
+        set(newPropTypes) {
+          console.error(
+            'React.lazy(...): It is not supported to assign `propTypes` to ' +
+              'a lazy component import. Either specify them where the component ' +
+              'is defined, or create a wrapping component around it.',
+          );
+          propTypes = newPropTypes;
+          // Match production behavior more closely:
+          // $FlowFixMe
+          Object.defineProperty(lazyType, 'propTypes', {
+            enumerable: true,
+          });
+        },
+      },
+    });
+  }
+
+  return lazyType;
+}
+```
+
+LazyComponent  
+
+```js
+export type LazyComponent<T, P> = {
+  $$typeof: Symbol | number,
+  _payload: P,
+  _init: (payload: P) => T,
+};
+```
+
+对于最初 React.lazy() 所返回的 LazyComponent 对象，其 _status 默认是 -1，所以首次渲染时，会进入 readLazyComponentType 函数中的 default 的逻辑，这里才会真正异步执行 import(url)操作，由于并未等待，随后会检查模块是否 Resolved，如果已经Resolved了（已经加载完毕）则直接返回moduleObject.default（动态加载的模块的默认导出），否则将通过 throw  抛出到上层。  
+
+为什么要 throw 它？这就要涉及到 Suspense 的工作原理.  
+
+```js
+// const Uninitialized = -1;
+// const Pending = 0;
+// const Resolved = 1;
+// const Rejected = 2;
+function lazyInitializer<T>(payload: Payload<T>): T {
+  if (payload._status === Uninitialized) {
+    const ctor = payload._result;
+    const thenable = ctor();
+    // Transition to the next state.
+    const pending: PendingPayload = (payload: any);
+    pending._status = Pending;
+    pending._result = thenable;
+    thenable.then(
+      moduleObject => {
+        if (payload._status === Pending) {
+          const defaultExport = moduleObject.default;
+          if (__DEV__) {
+            if (defaultExport === undefined) {
+              console.error(
+                'lazy: Expected the result of a dynamic import() call. ' +
+                  'Instead received: %s\n\nYour code should look like: \n  ' +
+                  // Break up imports to avoid accidentally parsing them as dependencies.
+                  'const MyComponent = lazy(() => imp' +
+                  "ort('./MyComponent'))",
+                moduleObject,
+              );
+            }
+          }
+          // Transition to the next state.
+          const resolved: ResolvedPayload<T> = (payload: any);
+          resolved._status = Resolved;
+          resolved._result = defaultExport;
+        }
+      },
+      error => {
+        if (payload._status === Pending) {
+          // Transition to the next state.
+          const rejected: RejectedPayload = (payload: any);
+          rejected._status = Rejected;
+          rejected._result = error;
+        }
+      },
+    );
+  }
+  if (payload._status === Resolved) {
+    return payload._result;
+  } else {
+    throw payload._result;
+  }
+}
+```
+
+##### 13.4.2.3. React.Suspense原理
+
+React 捕获到异常之后，会判断异常是不是一个 thenable，如果是则会找到 SuspenseComponent ，如果 thenable 处于 pending 状态，则会将其 children 都渲染成 fallback 的值，一旦 thenable 被 resolve 则 SuspenseComponent 的子组件会重新渲染一次。  
+
+实现一个简单版的 Suspense:
+
+```js
+class Suspense extends React.Component {
+  state = {
+    promise: null
+  }
+
+  componentDidCatch(e) {
+    if (e instanceof Promise) {
+      this.setState({
+        promise: e
+      }, () => {
+        e.then(() => {
+          this.setState({
+            promise: null
+          })
+        })
+      })
+    }
+  }
+
+  render() {
+    const { fallback, children } = this.props
+    const { promise } = this.state
+    return <>
+      { promise ? fallback : children }
+    </>
+  }
+}
+```
+
+### 13.5. redux
+
+
+### 13.6. mobx
+
+参考资料：[Reconciliation](https://reactjs.org/docs/reconciliation.html)
+[React Fiber 原理介绍](https://segmentfault.com/a/1190000018250127)  
+[import()](https://github.com/tc39/proposal-dynamic-import)  
+[React Fiber 源码解析](https://segmentfault.com/a/1190000023573713)  
+
+
+
 
