@@ -90,19 +90,28 @@
     - [12.4. 模块联邦 Module Federation](#124-模块联邦-module-federation)
   - [13. react](#13-react)
     - [13.1 原理（virtual DOM, Diff算法, fiber）](#131-原理virtual-dom-diff算法-fiber)
-      - [13.1.1. Virtual DOM](#1311-virtual-dom)
+      - [13.1.1. Virtual DOM 和Diff算法](#1311-virtual-dom-和diff算法)
       - [13.1.2. Fiber Reconciler](#1312-fiber-reconciler)
       - [13.1.3. Renderer](#1313-renderer)
     - [13.2. react hooks](#132-react-hooks)
     - [13.3.  react router](#133--react-router)
-    - [13.4. 一些常用API](#134-一些常用api)
+    - [13.4. 常见用法](#134-常见用法)
       - [13.4.1. Error Boundaries](#1341-error-boundaries)
       - [13.4.2. React.Lazy和React.Suspense](#1342-reactlazy和reactsuspense)
         - [13.4.2.1. import原理](#13421-import原理)
         - [13.4.2.2. React.Lazy原理](#13422-reactlazy原理)
         - [13.4.2.3. React.Suspense原理](#13423-reactsuspense原理)
+      - [13.4.3. ReactDOM.createPortal](#1343-reactdomcreateportal)
+      - [13.4.4. HOC](#1344-hoc)
     - [13.5. redux](#135-redux)
     - [13.6. mobx](#136-mobx)
+  - [14. 设计模式](#14-设计模式)
+  - [15. 常见数据结构](#15-常见数据结构)
+  - [16. 常见算法](#16-常见算法)
+    - [16.1. 深度优先遍历（DFS）和广度优先遍历（BFS）](#161-深度优先遍历dfs和广度优先遍历bfs)
+      - [16.1.1. 深度优先遍历（DFS）](#1611-深度优先遍历dfs)
+      - [16.1.2. 广度优先遍历（BFS）](#1612-广度优先遍历bfs)
+    - [16.2. 动态规划](#162-动态规划)
 
 ## 1. 类型
 
@@ -2560,7 +2569,30 @@ Virtual DOM 层，描述页面长什么样。
 Reconciler 层，负责调用组件生命周期方法，进行 Diff 运算等, 也叫Fiber Reconciler。  
 Renderer 层，根据不同的平台，渲染出相应的页面，比较常见的是 ReactDOM 和 ReactNative。  
 
-#### 13.1.1. Virtual DOM
+#### 13.1.1. Virtual DOM 和Diff算法
+
+Virtual DOM 算法。包括几个步骤：  
+
+1. 用 JavaScript 对象结构表示 DOM 树的结构；然后用这个树构建一个真正的 DOM 树，插到文档当中  
+2. 当状态变更的时候，重新构造一棵新的对象树。然后用新的树和旧的树进行比较，记录两棵树差异  
+3. 把2所记录的差异应用到步骤1所构建的真正的DOM树上，视图就更新了  
+
+Virtual DOM 本质上就是在 JS 和 DOM 之间做了一个缓存。  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2585,7 +2617,7 @@ fiber: https://github.com/spiderT/tt-blog/blob/master/notes/react-fiber-reconcil
 
 
 
-### 13.4. 一些常用API
+### 13.4. 常见用法
 
 #### 13.4.1. Error Boundaries
 
@@ -2854,15 +2886,237 @@ class Suspense extends React.Component {
 }
 ```
 
+#### 13.4.3. ReactDOM.createPortal
+
+Portal 提供了一种将子节点渲染到存在于父组件以外的 DOM 节点的优秀的方案。https://reactjs.org/docs/portals.html  
+
+```js
+// These two containers are siblings in the DOM
+const appRoot = document.getElementById('app-root');
+const modalRoot = document.getElementById('modal-root');
+
+class Modal extends React.Component {
+  constructor(props) {
+    super(props);
+    this.el = document.createElement('div');
+  }
+
+  componentDidMount() {
+    // The portal element is inserted in the DOM tree after
+    // the Modal's children are mounted, meaning that children
+    // will be mounted on a detached DOM node. If a child
+    // component requires to be attached to the DOM tree
+    // immediately when mounted, for example to measure a
+    // DOM node, or uses 'autoFocus' in a descendant, add
+    // state to Modal and only render the children when Modal
+    // is inserted in the DOM tree.
+    modalRoot.appendChild(this.el);
+  }
+
+  componentWillUnmount() {
+    modalRoot.removeChild(this.el);
+  }
+
+  render() {
+    return ReactDOM.createPortal(
+      this.props.children,
+      this.el
+    );
+  }
+}
+
+class Parent extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {clicks: 0};
+    this.handleClick = this.handleClick.bind(this);
+  }
+
+  handleClick() {
+    // This will fire when the button in Child is clicked,
+    // updating Parent's state, even though button
+    // is not direct descendant in the DOM.
+    this.setState(state => ({
+      clicks: state.clicks + 1
+    }));
+  }
+
+  render() {
+    return (
+      <div onClick={this.handleClick}>
+        <p>Number of clicks: {this.state.clicks}</p>
+        <p>
+          Open up the browser DevTools
+          to observe that the button
+          is not a child of the div
+          with the onClick handler.
+        </p>
+        <Modal>
+          <Child />
+        </Modal>
+      </div>
+    );
+  }
+}
+
+function Child() {
+  // The click event on this button will bubble up to parent,
+  // because there is no 'onClick' attribute defined
+  return (
+    <div className="modal">
+      <button>Click</button>
+    </div>
+  );
+}
+
+ReactDOM.render(<Parent />, appRoot);
+```
+
+#### 13.4.4. HOC
+
+
+
 ### 13.5. redux
 
 
 ### 13.6. mobx
 
+
 参考资料：[Reconciliation](https://reactjs.org/docs/reconciliation.html)
 [React Fiber 原理介绍](https://segmentfault.com/a/1190000018250127)  
 [import()](https://github.com/tc39/proposal-dynamic-import)  
 [React Fiber 源码解析](https://segmentfault.com/a/1190000023573713)  
+
+## 14. 设计模式
+
+## 15. 常见数据结构
+
+## 16. 常见算法
+
+### 16.1. 深度优先遍历（DFS）和广度优先遍历（BFS）
+
+深度优先遍历(Depth First Search, 简称 DFS) 与广度优先遍历(Breath First Search)是图论中两种非常重要的算法，生产上广泛用于拓扑排序，寻路(走迷宫)，搜索引擎，爬虫等。  
+
+以下算法，demo遍历的是dom节点，主要对应react的diff算法。  
+
+#### 16.1.1. 深度优先遍历（DFS）
+
+主要思路是从图中一个未访问的顶点 V 开始，沿着一条路一直走到底，然后从这条路尽头的节点回退到上一个节点，再从另一条路开始走到底...，不断递归重复此过程，直到所有的顶点都遍历完成，它的特点是不撞南墙不回头，先走完一条路，再换一条路继续走。  
+
+![fe37](images/fe37.png)
+
+1. 我们从根节点 1 开始遍历，它相邻的节点有 2，3，4，先遍历节点 2，再遍历 2 的子节点 5，然后再遍历 5 的子节点 9.
+
+![fe38](images/fe38.png)
+
+2. 上图中一条路已经走到底了(9是叶子节点，再无可遍历的节点)，此时就从 9 回退到上一个节点 5，看下节点 5 是否还有除 9 以外的节点，没有继续回退到 2，2 也没有除 5 以外的节点，回退到 1，1 有除 2 以外的节点 3，所以从节点 3 开始进行深度优先遍历，如下：
+
+![fe39](images/fe39.png)
+
+3. 同理从 10 开始往上回溯到 6, 6 没有除 10 以外的子节点，再往上回溯，发现 3 有除 6 以外的子点 7，所以此时会遍历 7。
+
+![fe40](images/fe40.png)
+
+5. 从 7 往上回溯到 3， 1，发现 1 还有节点 4 未遍历，所以此时沿着 4， 8 进行遍历,这样就遍历完成了。
+
+![fe41](images/fe41.png)
+
+> 1、递归实现  
+
+由于是前序遍历，所以我们依次遍历当前节点，左节点，右节点即可，对于左右节点来说，依次遍历它们的左右节点即可，依此不断递归下去，直到叶节点(递归终止条件),递归的表达性很好，也很容易理解，不过如果层级过深，很容易导致栈溢出.  
+
+```js
+function deepFirstSearch(node, nodeList) {
+  if (node) {
+    nodeList.push(node);
+    var children = node.children;
+    for (var i = 0; i < children.length; i++)
+      //每次递归的时候将 需要遍历的节点 和 节点所存储的数组传下去
+      deepFirstSearch(children[i], nodeList);
+  }
+  return nodeList;
+}
+```
+
+> 2、非递归实现  
+
+对于每个节点来说，先遍历当前节点，然后把右节点压栈，再压左节点(这样弹栈的时候会先拿到左节点遍历，符合深度优先遍历要求)。弹栈，拿到栈顶的节点，如果节点不为空，重复步骤 1，如果为空，结束遍历。  
+
+![fe42](images/fe42.png)
+
+整体动图如下：
+
+![fe43](images/fe43.gif)
+
+```js
+function deepFirstSearch2(node) {
+  var nodes = [];
+  if (node != null) {
+    var stack = [];
+    stack.push(node);
+    while (stack.length != 0) {
+      var item = stack.pop();
+      nodes.push(item);
+      var children = item.children;
+      for (var i = children.length - 1; i >= 0; i--) stack.push(children[i]);
+    }
+  }
+  return nodes;
+}
+```
+
+#### 16.1.2. 广度优先遍历（BFS）
+
+广度优先遍历，指的是从图的一个未遍历的节点出发，先遍历这个节点的相邻节点，再依次遍历每个相邻节点的相邻节点。  
+
+广度优先遍历也叫层序遍历，先遍历第一层(节点 1)，再遍历第二层(节点 2，3，4)，第三层(5，6，7，8)，第四层(9，10)。  
+
+![fe44](images/fe44.gif)
+
+递归版本
+
+```js
+function breadthFirstSearch(node, res) {
+  if (res.indexOf(node) === -1) {
+    res.push(node); // 存入根节点
+  }
+  const childrens = node.children;
+  const len = childrens.length;
+  for (let i = 0; i < len; i++) {
+    if (childrens[i] !== null) {
+      res.push(childrens[i]); // 存入当前节点的所有子元素
+    }
+  }
+  for (let j = 0; j < len; j++) {
+    breadthFirstSearch(childrens[j], res); // 对每个子元素递归
+  }
+  return res;
+}
+```
+
+非递归版本: 广度优先遍历要用队列来实现
+
+![fe45](images/fe45.gif)
+
+```js
+function breadthFirstSearch2(node) {
+  const nodes = [];
+  if (node) {
+    const queue = [];
+    queue.unshift(node);
+    while (queue.length != 0) {
+      const item = queue.shift();
+      nodes.push(item);
+      const children = item.children;
+      for (let i = 0; i < children.length; i++) queue.push(children[i]);
+    }
+  }
+  return nodes;
+}
+```
+
+### 16.2. 动态规划
+
 
 
 
