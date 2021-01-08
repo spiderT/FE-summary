@@ -92,9 +92,11 @@
     - [13.1 原理（virtual DOM, Diff算法, fiber）](#131-原理virtual-dom-diff算法-fiber)
       - [13.1.1. Virtual DOM 和Diff算法](#1311-virtual-dom-和diff算法)
       - [13.1.2. Fiber Reconciler](#1312-fiber-reconciler)
-      - [13.1.3. Renderer](#1313-renderer)
     - [13.2. react hooks](#132-react-hooks)
     - [13.3.  react router](#133--react-router)
+      - [13.3.1. Router](#1331-router)
+      - [13.3.2. Link](#1332-link)
+      - [13.3.3. Switch](#1333-switch)
     - [13.4. 常见用法](#134-常见用法)
       - [13.4.1. Error Boundaries](#1341-error-boundaries)
       - [13.4.2. React.Lazy和React.Suspense](#1342-reactlazy和reactsuspense)
@@ -112,6 +114,12 @@
       - [16.1.1. 深度优先遍历（DFS）](#1611-深度优先遍历dfs)
       - [16.1.2. 广度优先遍历（BFS）](#1612-广度优先遍历bfs)
     - [16.2. 动态规划](#162-动态规划)
+  - [17. 源码学习](#17-源码学习)
+    - [17.1. react](#171-react)
+    - [17.2. react router](#172-react-router)
+    - [17.3. antd design](#173-antd-design)
+    - [17.4. qiankun](#174-qiankun)
+  - [18. 前端多项目管理工具lerna](#18-前端多项目管理工具lerna)
 
 ## 1. 类型
 
@@ -2571,6 +2579,8 @@ Renderer 层，根据不同的平台，渲染出相应的页面，比较常见�
 
 #### 13.1.1. Virtual DOM 和Diff算法
 
+官网：https://reactjs.org/docs/reconciliation.html  
+
 Virtual DOM 算法。包括几个步骤：  
 
 1. 用 JavaScript 对象结构表示 DOM 树的结构；然后用这个树构建一个真正的 DOM 树，插到文档当中  
@@ -2579,41 +2589,303 @@ Virtual DOM 算法。包括几个步骤：
 
 Virtual DOM 本质上就是在 JS 和 DOM 之间做了一个缓存。  
 
+传统 diff 算法通过循环递归对节点进行依次对比，效率低下，算法复杂度达到 O(n^3)，其中 n 是树中节点的总数。O(n^3) 到底有多可怕，这意味着如果要展示1000个节点，就要依次执行上十亿次的比较。React 将 O(n^3) 复杂度的问题转换成 O(n) 复杂度的问题。  
 
+> diff 策略  
 
+1. Web UI 中 DOM 节点跨层级的移动操作特别少，可以忽略不计。
+2. 拥有相同类的两个组件将会生成相似的树形结构，拥有不同类的两个组件将会生成不同的树形结构。
+3. 对于同一层级的一组子节点，它们可以通过唯一 id 进行区分。
 
+基于以上三个前提策略，React 分别对 tree diff、component diff 以及 element diff 进行算法优化，事实也证明这三个前提策略是合理且准确的，它保证了整体界面构建的性能。
 
+- tree diff
+- component diff
+- element diff  
 
+> 1. tree diff
 
+对树进行分层比较，两棵树只会对同一层次的节点进行比较。  
 
+既然 DOM 节点跨层级的移动操作少到可以忽略不计，针对这一现象，React 通过 updateDepth 对 Virtual DOM 树进行层级控制，只会对相同颜色方框内的 DOM 节点进行比较，即同一个父节点下的所有子节点。当发现节点已经不存在，则该节点及其子节点会被完全删除掉，不会用于进一步的比较。这样只需要对树进行一次遍历，便能完成整个 DOM 树的比较。  
 
+![fe46](images/fe46.png)
 
+```js
+updateChildren: function(nextNestedChildrenElements, transaction, context) {
+  updateDepth++;
+  var errorThrown = true;
+  try {
+    this._updateChildren(nextNestedChildrenElements, transaction, context);
+    errorThrown = false;
+  } finally {
+    updateDepth--;
+    if (!updateDepth) {
+      if (errorThrown) {
+        clearQueue();
+      } else {
+        processQueue();
+      }
+    }
+  }
+}
+```
 
+如下图，A 节点（包括其子节点）整个被移动到 D 节点下，由于 React 只会简单的考虑同层级节点的位置变换，而对于不同层级的节点，只有创建和删除操作。当根节点发现子节点中 A 消失了，就会直接销毁 A；当 D 发现多了一个子节点 A，则会创建新的 A（包括子节点）作为其子节点。此时，React diff 的执行情况：create A -> create B -> create C -> delete A。  
 
+![fe47](images/fe47.png)
 
+当出现节点跨层级移动时，并不会出现想象中的移动操作，而是以 A 为根节点的树被整个重新创建，这是一种影响 React 性能的操作，因此 React 官方建议不要进行 DOM 节点跨层级的操作。  
 
+**注意：在开发组件时，保持稳定的 DOM 结构会有助于性能的提升。例如，可以通过 CSS 隐藏或显示节点，而不是真的移除或添加 DOM 节点。**  
 
+> 2. component diff  
 
+如果是同一类型的组件，按照原策略继续比较 virtual DOM tree。  
 
+如果不是，则将该组件判断为 dirty component，从而替换整个组件下的所有子节点。  
+
+对于同一类型的组件，有可能其 Virtual DOM 没有任何变化，如果能够确切的知道这点那可以节省大量的 diff 运算时间，因此 React 允许用户通过 shouldComponentUpdate() 来判断该组件是否需要进行 diff。  
+
+如下图，当 component D 改变为 component G 时，即使这两个 component 结构相似，一旦 React 判断 D 和 G 是不同类型的组件，就不会比较二者的结构，而是直接删除 component D，重新创建 component G 以及其子节点。虽然当两个 component 是不同类型但结构相似时，React diff 会影响性能，但正如 React 官方博客所言：不同类型的 component 是很少存在相似 DOM tree 的机会，因此这种极端因素很难在实现开发过程中造成重大影响的。
+
+![fe48](images/fe48.png)
+
+> 3. element diff  
+
+当节点处于同一层级时，React diff 提供了三种节点操作，分别为：INSERT_MARKUP（插入）、MOVE_EXISTING（移动）和 REMOVE_NODE（删除）。  
+
+- INSERT_MARKUP，新的 component 类型不在老集合里， 即是全新的节点，需要对新节点执行插入操作。
+
+- MOVE_EXISTING，在老集合有新 component 类型，且 element 是可更新的类型，generateComponentChildren 已调用 receiveComponent，这种情况下 prevChild=nextChild，就需要做移动操作，可以复用以前的 DOM 节点。
+
+- REMOVE_NODE，老 component 类型，在新集合里也有，但对应的 element 不同则不能直接复用和更新，需要执行删除操作，或者老 component 不在新集合里的，也需要执行删除操作。  
+
+如下图，老集合中包含节点：A、B、C、D，更新后的新集合中包含节点：B、A、D、C，此时新老集合进行 diff 差异化对比，发现 B != A，则创建并插入 B 至新集合，删除老集合 A；以此类推，创建并插入 A、D 和 C，删除 B、C 和 D。  
+
+![fe49](images/fe49.png)
+
+针对这一现象，React 提出优化策略：允许开发者对同一层级的同组子节点，添加唯一 key 进行区分，虽然只是小小的改动，性能上却发生了翻天覆地的变化！  
+
+新老集合所包含的节点，如下图所示，新老集合进行 diff 差异化对比，通过 key 发现新老集合中的节点都是相同的节点，因此无需进行节点删除和创建，只需要将老集合中节点的位置进行移动，更新为新集合中节点的位置，此时 React 给出的 diff 结果为：B、D 不做任何操作，A、C 进行移动操作，即可。  
+
+![fe50](images/fe50.jpg)
+
+首先对新集合的节点进行循环遍历，for (name in nextChildren)，通过唯一 key 可以判断新老集合中是否存在相同的节点，if (prevChild === nextChild)，如果存在相同节点，则进行移动操作，但在移动前需要将当前节点在老集合中的位置与 lastIndex 进行比较，if (child._mountIndex < lastIndex)，则进行节点移动操作，否则不执行该操作。这是一种顺序优化手段，lastIndex 一直在更新，表示访问过的节点在老集合中最右的位置（即最大的位置），如果新集合中当前访问的节点比 lastIndex 大，说明当前访问节点在老集合中就比上一个节点位置靠后，则该节点不会影响其他节点的位置，因此不用添加到差异队列中，即不执行移动操作，只有当访问的节点比 lastIndex 小时，才需要进行移动操作。  
+
+如果新集合中有新加入的节点且老集合存在需要删除的节点, 以下图为例：
+
+![fe51](images/fe51.png)
+
+1. 从新集合中取得 B，判断老集合中存在相同节点 B，由于 B 在老集合中的位置 B._mountIndex = 1，此时lastIndex = 0，因此不对 B 进行移动操作；更新 lastIndex ＝ 1，并将 B 的位置更新为新集合中的位置B._mountIndex = 0，nextIndex++进入下一个节点的判断。
+
+2. 从新集合中取得 E，判断老集合中不存在相同节点 E，则创建新节点 E；更新 lastIndex ＝ 1，并将 E 的位置更新为新集合中的位置，nextIndex++进入下一个节点的判断。
+
+3. 从新集合中取得 C，判断老集合中存在相同节点 C，由于 C 在老集合中的位置C._mountIndex = 2，lastIndex = 1，此时 C._mountIndex > lastIndex，因此不对 C 进行移动操作；更新 lastIndex ＝ 2，并将 C 的位置更新为新集合中的位置，nextIndex++ 进入下一个节点的判断。
+
+4. 从新集合中取得 A，判断老集合中存在相同节点 A，由于 A 在老集合中的位置A._mountIndex = 0，lastIndex = 2，此时 A._mountIndex < lastIndex，因此对 A 进行移动操作；更新 lastIndex ＝ 2，并将 A 的位置更新为新集合中的位置，nextIndex++ 进入下一个节点的判断。
+
+5. 当完成新集合中所有节点 diff 时，最后还需要对老集合进行循环遍历，判断是否存在新集合中没有但老集合中仍存在的节点，发现存在这样的节点 D，因此删除节点 D，到此 diff 全部完成。  
 
 #### 13.1.2. Fiber Reconciler
 
 fiber: https://github.com/spiderT/tt-blog/blob/master/notes/react-fiber-reconciler.md
 
-#### 13.1.3. Renderer
-
-
-
-
-
 ### 13.2. react hooks
 
 ### 13.3.  react router
 
-前端路由本质就是监听 URL 的变化，然后匹配路由规则，显示相应的页面，并且无须刷新页面。目前前端使用的路由就只有两种实现方式
+前端路由本质就是监听 URL 的变化，然后匹配路由规则，显示相应的页面，并且无须刷新页面。
+
+几个关键点：
+
+- 监听URL的改变
+- 改变react-router里面的current变量
+- 监视current变量
+- 获取对应的组件
+- render新组件  
+
+目前前端使用的路由就只有两种实现方式
 
 - Hash 模式
 - History 模式  
+
+从React-Router源码（"version": "5.2.0"）的来看实现机制：  
+
+#### 13.3.1. Router
+
+组件的源码路径：packages/react-router/modules/Router.js  
+
+获取当前路由并通过Context API将它传递下去：  
+
+```js
+static computeRootMatch(pathname) {
+    return { path: "/", url: "/", params: {}, isExact: pathname === "/" };
+  }
+
+  constructor(props) {
+    super(props);
+
+    this.state = {
+      location: props.history.location
+    };
+
+    // This is a bit of a hack. We have to start listening for location
+    // changes here in the constructor in case there are any <Redirect>s
+    // on the initial render. If there are, they will replace/push when
+    // they mount and since cDM fires in children before parents, we may
+    // get a new location before the <Router> is mounted.
+    this._isMounted = false;
+    this._pendingLocation = null;
+
+    if (!props.staticContext) {
+      this.unlisten = props.history.listen(location => {
+        if (this._isMounted) {
+          this.setState({ location });
+        } else {
+          this._pendingLocation = location;
+        }
+      });
+    }
+  }
+
+  componentDidMount() {
+    this._isMounted = true;
+
+    if (this._pendingLocation) {
+      this.setState({ location: this._pendingLocation });
+    }
+  }
+
+  componentWillUnmount() {
+    if (this.unlisten) {
+      this.unlisten();
+      this._isMounted = false;
+      this._pendingLocation = null;
+    }
+  }
+
+  render() {
+    return (
+      <RouterContext.Provider
+        value={{
+          history: this.props.history,
+          location: this.state.location,
+          match: Router.computeRootMatch(this.state.location.pathname),
+          staticContext: this.props.staticContext
+        }}
+      >
+        <HistoryContext.Provider
+          children={this.props.children || null}
+          value={this.props.history}
+        />
+      </RouterContext.Provider>
+    );
+  }
+}
+```
+
+render的内容就是两个context  
+一个是路由的相关属性，包括history和location等  
+一个只包含history信息，同时将子组件通过children渲染出来  
+
+#### 13.3.2. Link
+
+组件的源码路径：packages/react-router-native/Link.js  
+
+就是一个跳转，浏览器上要实现一个跳转，可以用a标签，但是如果直接使用a标签可能会导致页面刷新，所以不能直接使用它，而应该使用history API  
+
+```js
+export default class Link extends React.Component {
+  static defaultProps = {
+    component: TouchableHighlight,
+    replace: false
+  };
+
+  handlePress = (event, history) => {
+    if (this.props.onPress) this.props.onPress(event);
+
+    if (!event.defaultPrevented) {
+      const { to, replace } = this.props;
+
+      if (replace) {
+        history.replace(to);
+      } else {
+        history.push(to);
+      }
+    }
+  };
+
+  render() {
+    const { component: Component, to, replace, ...rest } = this.props;
+
+    return (
+      <HistoryContext.Consumer>
+        {history => (
+          <Component
+            {...rest}
+            onPress={event => this.handlePress(event, history)}
+          />
+        )}
+      </HistoryContext.Consumer>
+    );
+  }
+}
+```
+
+直接使用a标签会导致页面刷新, 只是使用event.preventDefault禁止了默认行为  
+
+#### 13.3.3. Switch
+
+组件的源码路径：packages/react-router/modules/Switch.js  
+
+Switch组件的功能只有一个，就是即使多个Route的path都匹配上了当前路由，也只渲染第一个匹配上的组件。把Switch的children拿出来循环，找出第一个匹配的child，给它添加一个标记属性computedMatch，顺便把其他的child全部干掉，然后修改下Route的渲染逻辑，先检测computedMatch，如果没有这个再使用matchPath自己去匹配：  
+
+```js
+class Switch extends React.Component {
+  render() {
+    return (
+      <RouterContext.Consumer>
+        {context => {
+          invariant(context, "You should not use <Switch> outside a <Router>");
+
+          const location = this.props.location || context.location;
+
+          let element, match;
+
+          // We use React.Children.forEach instead of React.Children.toArray().find()
+          // here because toArray adds keys to all child elements and we do not want
+          // to trigger an unmount/remount for two <Route>s that render the same
+          // component at different URLs.
+          React.Children.forEach(this.props.children, child => {
+            if (match == null && React.isValidElement(child)) {
+              element = child;
+
+              const path = child.props.path || child.props.from;
+
+              match = path
+                ? matchPath(location.pathname, { ...child.props, path })
+                : context.match;
+            }
+          });
+
+          // 最终组件的返回值只是匹配子元素的一个拷贝，其他子元素被忽略了
+          // match属性会被塞给拷贝元素的computedMatch
+          // 如果一个都没匹配上，返回null
+          return match
+            ? React.cloneElement(element, { location, computedMatch: match })
+            : null;
+        }}
+      </RouterContext.Consumer>
+    );
+  }
+}
+```
+
+HashRouter,他的基本结构跟BrowserRouter是一样的，只是他会调用history的createHashHistory，createHashHistory里面不仅仅会去监听popstate，某些浏览器在hash变化的时候不会触发popstate，所以还需要监听hashchange事件。  
+
+源码路径：packages/react-router-dom/modules/HashRouter.js  
+
 
 
 
@@ -2986,6 +3258,7 @@ ReactDOM.render(<Parent />, appRoot);
 [React Fiber 原理介绍](https://segmentfault.com/a/1190000018250127)  
 [import()](https://github.com/tc39/proposal-dynamic-import)  
 [React Fiber 源码解析](https://segmentfault.com/a/1190000023573713)  
+[React 源码剖析系列 － 不可思议的 react diff](https://zhuanlan.zhihu.com/p/20346379)  
 
 ## 14. 设计模式
 
@@ -3116,6 +3389,22 @@ function breadthFirstSearch2(node) {
 ```
 
 ### 16.2. 动态规划
+
+
+
+## 17. 源码学习
+
+### 17.1. react
+
+### 17.2. react router
+
+### 17.3. antd design
+
+### 17.4. qiankun
+
+## 18. 前端多项目管理工具lerna
+
+
 
 
 
