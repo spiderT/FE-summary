@@ -114,6 +114,7 @@
       - [16.1.1. 深度优先遍历（DFS）](#1611-深度优先遍历dfs)
       - [16.1.2. 广度优先遍历（BFS）](#1612-广度优先遍历bfs)
     - [16.2. 动态规划](#162-动态规划)
+    - [16.3. 贪心算法](#163-贪心算法)
   - [17. 源码学习](#17-源码学习)
     - [17.1. react](#171-react)
     - [17.2. react router](#172-react-router)
@@ -3390,6 +3391,109 @@ function breadthFirstSearch2(node) {
 
 ### 16.2. 动态规划
 
+动态规划（Dynamic Programming，DP）是一种将复杂问题分解成更小的子问题来解决的优化算法。  
+
+> 例1：最少硬币找零  
+
+给定一组硬币的面额，以及要找零的钱数，计算出符合找零钱数的最少硬币数量。例如，美国硬币面额有1、5、10、25这四种面额，如果要找36美分的零钱，则得出的最少硬币数应该是1个25美分、1个10美分和1个1美分共三个硬币。  
+
+```js
+function minCoinChange(coins, amount) {
+  let result = null;
+  if (!amount) return result;
+
+  const makeChange = (index, value, min) => {
+    let coin = coins[index];
+    let newAmount = Math.floor(value / coin);
+    if (newAmount) min[coin] = newAmount;
+    if (value % coin !== 0) {
+      makeChange(--index, value - coin * newAmount, min);
+    }
+  };
+
+  const arr = [];
+  for (let i = 0; i < coins.length; i++) {
+    const cache = {};
+    makeChange(i, amount, cache);
+    arr.push(cache);
+  }
+
+  console.log(arr);
+  let newMin = 0;
+  arr.forEach((item) => {
+    let min = 0;
+    for (let v in item) min += item[v];
+    if (!newMin || min < newMin) {
+      newMin = min;
+      result = item;
+    }
+  });
+  return result;
+}
+```
+
+> 例2：背包问题  
+
+背包问题是一个组合优化问题，它被描述为：给定一个具有固定容量的背包capacity，以及一组具有价值（value）和重量（weight）的物品，找出一个最优方案，使得装入背包的物品的总重量不超过capacity，且总价值最大。  
+
+假设我们有以下物品，且背包的总容量为5：  
+
+| 物品 | 重量 | 价值 |
+| --- | --- | --- |
+| 1 | 2 | 3 |
+| 2 | 3 | 4 |
+| 3 | 4 | 5 |
+
+```js
+```
+
+> 例3： 最长公共子序列（LCS）  
+
+找出两个字符串序列的最长子序列的长度。所谓最长子序列，是指两个字符串序列中以相同顺序出现，但不要求连续的字符串序列。例如下面两个字符串：  
+
+字符串1：acbaed  
+字符串2：abcadf  
+则LCS为acad。  
+
+```js
+```
+
+### 16.3. 贪心算法
+
+贪心算法(Greedy Algorithm, GA )遵循一种近似解决问题的技术，期盼通过每个阶段的局部最优选择，从而达到全局的最优。  
+
+> 例1：最少硬币找零  
+
+给定一组硬币的面额，以及要找零的钱数，计算出符合找零钱数的最少硬币数量。
+
+```js
+function minCoinChange(coins, amount) {
+  const change = [];
+  let total = 0;
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const coin = coins[i];
+    while (total + coin <= amount) {
+      change.push(coin);
+      total += coin;
+    }
+  }
+  return change;
+}
+
+const result = minCoinChange([1, 2, 5, 9, 10], 18);
+console.log(result); // [ 10, 5, 2, 1 ]
+```
+
+给出的结果[10, 5, 2, 1]并不是最优方案，最优方案应该是[9, 9]。  
+
+与动态规划相比，贪心算法更简单、效率更高。但是其结果并不总是最理想的。但是综合看来，它相对执行时间来说，输出一个可以接受的结果。
+
+> 例2：背包问题  
+
+
+
+
+
 
 
 ## 17. 源码学习
@@ -3403,6 +3507,29 @@ function breadthFirstSearch2(node) {
 ### 17.4. qiankun
 
 ## 18. 前端多项目管理工具lerna
+
+官网：https://lernajs.bootcss.com/  
+
+```text
+// 用 npm 将 Lerna 安装到全局环境中：
+npm install --global lerna
+
+// 创建一个新的 git 代码仓库：
+git init lerna-repo && cd lerna-repo
+
+// 将上述仓库转变为一个 Lerna 仓库：
+lerna init
+```
+
+代码仓库目前应该是如下结构：
+
+```text
+lerna-repo/
+  packages/
+  package.json
+  lerna.json
+```
+
 
 
 
