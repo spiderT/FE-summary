@@ -115,6 +115,8 @@
       - [16.1.2. 广度优先遍历（BFS）](#1612-广度优先遍历bfs)
     - [16.2. 动态规划](#162-动态规划)
     - [16.3. 贪心算法](#163-贪心算法)
+    - [16.4. 分治算法](#164-分治算法)
+    - [16.5. 回溯算法](#165-回溯算法)
   - [17. 源码学习](#17-源码学习)
     - [17.1. react](#171-react)
     - [17.2. react router](#172-react-router)
@@ -3445,9 +3447,28 @@ function minCoinChange(coins, amount) {
 | 3 | 4 | 5 |
 
 ```js
+function knapSack(capacity, weights, values) {
+  const n = values.length;
+  let load = 0;
+  let val = 0;
+  for (let i = 0; i < n && load < capacity; i++) {
+    if (weights[i] <= capacity - load) {
+      val += values[i];
+      load += weights[i];
+      console.log(`物品${i + 1}，重量：${weights[i]}，价值：${values[i]}`);
+    } else {
+      const r = (capacity - load) / weights[i];
+      val += r * values[i];
+      load += weights[i];
+      console.log(`物品${i + 1}的${r}，重量：${r * weights[i]}，价值：${val}`);
+    }
+  }
+
+  return val;
+}
 ```
 
-> 例3： 最长公共子序列（LCS）  
+> 例3：最长公共子序列（LCS）  
 
 找出两个字符串序列的最长子序列的长度。所谓最长子序列，是指两个字符串序列中以相同顺序出现，但不要求连续的字符串序列。例如下面两个字符串：  
 
@@ -3456,6 +3477,57 @@ function minCoinChange(coins, amount) {
 则LCS为acad。  
 
 ```js
+function printSolution(solution, wordX, m, n) {
+  let a = m;
+  let b = n;
+  let x = solution[a][b];
+  let answer = "";
+  while (x !== "0") {
+    if (solution[a][b] === "diagonal") {
+      answer = wordX[a - 1] + answer;
+      a--;
+      b--;
+    } else if (solution[a][b] === "left") {
+      b--;
+    } else if (solution[a][b] === "top") {
+      a--;
+    }
+    x = solution[a][b];
+  }
+  return answer;
+}
+
+function lcs(wordX, wordY) {
+  const m = wordX.length;
+  const n = wordY.length;
+  const l = [];
+  const solution = [];
+  for (let i = 0; i <= m; i++) {
+    l[i] = [];
+    solution[i] = [];
+    for (let j = 0; j <= n; j++) {
+      l[i][j] = 0;
+      solution[i][j] = "0";
+    }
+  }
+  for (let i = 0; i <= m; i++) {
+    for (let j = 0; j <= n; j++) {
+      if (i === 0 || j === 0) {
+        l[i][j] = 0;
+      } else if (wordX[i - 1] === wordY[j - 1]) {
+        l[i][j] = l[i - 1][j - 1] + 1;
+        solution[i][j] = "diagonal";
+      } else {
+        const a = l[i - 1][j];
+        const b = l[i][j - 1];
+        l[i][j] = Math.max(a, b);
+        solution[i][j] = l[i][j] === l[i - 1][j] ? "top" : "left";
+      }
+    }
+  }
+
+  return printSolution(solution, wordX, m, n);
+}
 ```
 
 ### 16.3. 贪心算法
@@ -3490,11 +3562,234 @@ console.log(result); // [ 10, 5, 2, 1 ]
 
 > 例2：背包问题  
 
+```js
+function knapSack(capacity, weights, values) {
+  const n = values.length;
+  let load = 0;
+  let val = 0;
+  for (let i = 0; i < n && load < capacity; i++) {
+    if (weights[i] <= capacity - load) {
+      val += values[i];
+      load += weights[i];
+      console.log(`物品${i + 1}，重量：${weights[i]}，价值：${values[i]}`);
+    } else {
+      const r = (capacity - load) / weights[i];
+      val += r * values[i];
+      load += weights[i];
+      console.log(`物品${i + 1}的${r}，重量：${r * weights[i]}，价值：${val}`);
+    }
+  }
 
+  return val;
+}
+```
 
+> 例3：最长公共子序列（LCS）  
 
+```js
+function lcs(wordX, wordY, m = wordX.length, n = wordY.length) {
+  if (m === 0 || n === 0) {
+    return 0;
+  }
+  if (wordX[m - 1] === wordY[n - 1]) {
+    return 1 + lcs(wordX, wordY, m - 1, n - 1);
+  }
+  const a = lcs(wordX, wordY, m, n - 1);
+  const b = lcs(wordX, wordY, m - 1, n);
+  return a > b ? a : b;
+}
 
+const wordX = ["a", "c", "b", "a", "e", "d"];
+const wordY = ["a", "b", "c", "a", "d", "f"];
+console.log(lcs(wordX, wordY)); // 4
+```
 
+### 16.4. 分治算法
+
+分治算法(Divide Conquer)不是简单的递归，而是将大的问题递归解决较小的问题，然后从子问题的解构建原问题的解。  
+
+分治算法的递归实现中，每一层递归都会涉及这样三个操作：  
+
+- 分解：将原问题分解成一系列子问题；  
+- 解决：递归地求解各个子问题，若子问题足够小，则直接求解；  
+- 合并：将子问题的结果合并成原问题。  
+
+> 例1：求一组数据的逆序对个数  
+
+在数组中的两个数字，如果前面一个数字大于后面的数字，则这两个数字组成一个逆序对。输入一个数组,求出这个数组中的逆序对的总数P。  
+
+> 解法一：  
+
+拿每个数字跟它后面的数字比较，看有几个比它小的。把比它小的数字个数记作 k，通过这样的方式，把每个数字都考察一遍之后，然后对每个数字对应的 k 值求和，最后得到的总和就是逆序对个数。  
+
+时间复杂度是O(n^2)。  
+
+> 解法二：  
+
+套用分治的思想来求数组 A 的逆序对个数。可以将数组分成前后两半 A1 和 A2，分别计算 A1 和 A2 的逆序对个数 K1 和 K2， 然后再计算 A1 与 A2 之间的逆序对个数 K3。那数组 A 的逆序对个数就等于 K1 + K2 + K3。  
+
+时间复杂度O(nlogn)，空间复杂度O(n)  
+
+```js
+function reverseDegree(arr) {
+  return mergeSortCounting(arr, 0, arr.length - 1, []);
+}
+
+function mergeSortCounting(arr, left, right, tmp) {
+  if (left >= right) return 0;
+
+  let mid = Math.floor((left + right) / 2);
+  let l = mergeSortCounting(arr, left, mid, tmp);
+  let r = mergeSortCounting(arr, mid + 1, right, tmp);
+  let m = merge(arr, left, mid, right, tmp);
+  return l + m + r;
+}
+
+function merge(arr, l, m, r, tmp) {
+  let count = 0;
+  let i = l,
+    j = m + 1,
+    k = 0;
+
+  while (i <= m && j <= r) {
+    if (arr[i] <= arr[j]) {
+      tmp[k++] = arr[i++];
+    } else {
+      count += m - i + 1; //统计 l到m 之间，比 a[j] 大的元素个数
+      tmp[k++] = arr[j++];
+    }
+  }
+  while (i <= m) {
+    //处理剩下的
+    tmp[k++] = arr[i++];
+  }
+  while (j <= r) {
+    //处理剩下的
+    tmp[k++] = arr[j++];
+  }
+  for (i = 0; i < r - m; ++i) {
+    // 从tmp拷回arr
+    arr[l + i] = tmp[i];
+  }
+  return count;
+}
+
+console.log(reverseDegree([2, 4, 3, 1, 5, 6]));
+// 4 (2,1) (4,3) (4,1) (3,1)
+```
+
+### 16.5. 回溯算法
+
+Backtracking Algorithm 相当于穷举搜索的巧妙实现，对比蛮力的穷举搜索，回溯算法可以对一些不符合要求的或者是重复的情况进行裁剪，不再对其进行搜索，以减少搜索的工作量提高效率。  
+
+比如，在图运用回溯算法的深度优先搜索遍历中，会对已搜索遍历过的顶点进行标记，避免下次的回溯搜索中对再次出现的该顶点进行重复遍历。  
+
+> 例1：0-1背包  
+
+有一个背包，背包总的承载重量是 W。现在有 n 个物品，每个物品的重量不等，并且不可分割。 现在期望选择几件物品，装载到背包中。在不超过背包所能装载重量的前提下，如何让背包中物品的总重量最大？  
+
+可以把物品依次排列，整个问题就分解为了 n 个阶段，每个阶段对应一个物品怎么选择。先对第一个物品进行处理，选择装进去或者不装进去，然后再递归地处理剩下的物品。
+
+```js
+let maxW = 0;
+/**
+ * @param i 考察到哪个物品了
+ * @param curW 当前已经装进去的物品重量和
+ * @param weight 物品重量数组
+ * @param n  物品个数
+ * @param w  背包可承载重量
+ */
+function knapsack(i, curW, weight, n, w) {
+  if (curW === w || i === n) {
+    if (curW > maxW) {
+      maxW = curW;
+    }
+    return;
+  }
+  knapsack(i + 1, curW, weight, n, w); //选择不装第i个物品
+  if (curW + weight[i] <= w) {
+    knapsack(i + 1, curW + weight[i], weight, n, w); //选择装第i个物品
+  }
+}
+
+const a = [2, 2, 4, 6, 3];
+knapsack(0, 0, a, 5, 9);
+console.log(maxW);
+// 9
+```
+
+> 例2：n皇后  
+
+n 皇后问题研究的是如何将 n 个皇后放置在 n×n 的棋盘上，并且使皇后彼此之间不能相互攻击。  
+
+有一个 8x8 的棋盘，希望往里放 8 个棋子（皇后），每个棋子所在的行、列、对角线都不能有另一个棋子。八皇后问题就是期望找到所有满足这种要求的放棋子方式。  
+
+步骤：  
+
+1. 把这个问题划分成 8 个阶段，依次将 8 个棋子放到第一行、第二行、第三行……第八行。  
+2. 在放置的过程中，不停地检查当前的方法，是否满足要求。如果满足，则跳到下一行继续放置棋子；如果不满足，那就再换一种方法，继续尝试。  
+
+```js
+let counter = 0;
+
+function calcQueens(row, result = []) {
+  if (row === 8) {
+    counter++;
+    console.log("第" + counter + "种：");
+    printQueens(result);
+    console.log("-----------------------");
+    return;
+  }
+  for (let col = 0; col < 8; ++col) {
+    if (isOk(row, col, result)) {
+      result[row] = col;
+      calcQueens(row + 1, result);
+    }
+  }
+}
+
+function isOk(row, col, result) {
+  let leftup = col - 1;
+  let rightup = col + 1;
+  for (let i = row - 1; i >= 0; i--) {
+    if (result[i] === col) {
+      return false;
+    }
+    if (leftup >= 0) {
+      if (result[i] === leftup) {
+        return false;
+      }
+    }
+    if (leftup < 8) {
+      if (result[i] === rightup) {
+        return false;
+      }
+    }
+    leftup--;
+    rightup++;
+  }
+  return true;
+}
+
+function printQueens(arr, counter = 0) {
+  counter++;
+  for (let row = 0; row < 8; row++) {
+    let line = "";
+    for (let col = 0; col < 8; col++) {
+      if (arr[row] === col) {
+        line += " Q ";
+      } else {
+        line += " * ";
+      }
+    }
+    console.log(line);
+  }
+  return counter;
+}
+
+calcQueens(0);
+// 92种摆法
+```
 
 ## 17. 源码学习
 
