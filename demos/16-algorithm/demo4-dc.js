@@ -1,45 +1,37 @@
-function reverseDegree(arr) {
-  return mergeSortCounting(arr, 0, arr.length - 1, []);
-}
-
-function mergeSortCounting(arr, left, right, tmp) {
-  if (left >= right) return 0;
-
-  let mid = Math.floor((left + right) / 2);
-  let l = mergeSortCounting(arr, left, mid, tmp);
-  let r = mergeSortCounting(arr, mid + 1, right, tmp);
-  let m = merge(arr, left, mid, right, tmp);
-  return l + m + r;
-}
-
-function merge(arr, l, m, r, tmp) {
-  let count = 0;
-  let i = l,
-    j = m + 1,
-    k = 0;
-
-  while (i <= m && j <= r) {
-    if (arr[i] <= arr[j]) {
-      tmp[k++] = arr[i++];
-    } else {
-      count += m - i + 1; //统计 l到m 之间，比 a[j] 大的元素个数
-      tmp[k++] = arr[j++];
-    }
-  }
-  while (i <= m) {
-    //处理剩下的
-    tmp[k++] = arr[i++];
-  }
-  while (j <= r) {
-    //处理剩下的
-    tmp[k++] = arr[j++];
-  }
-  for (i = 0; i < r - m; ++i) {
-    // 从tmp拷回arr
-    arr[l + i] = tmp[i];
-  }
+// 求一组数据的逆序对个数
+// 过程：先把数组分割成子数组，先统计出子数组内部的逆序对的数目，然后再统计出两个相邻子数组之间的逆序对的数目。在统计逆序对的过程中，还需要对数组进行排序。如果对排序算法很熟悉，我们不难发现这个过程实际上就是归并排序
+function InversePairs(data = []) {
+  let len = data.length;
+  if (len === 0) return 0;
+  const copy = data.concat([]);
+  let count = InversePairsHelp(data, copy, 0, len - 1);
   return count;
+  function InversePairsHelp(data, copy, start, end) {
+    if (start === end) {
+      copy[start] = data[start];
+      return 0;
+    }
+    let mid = Math.floor((end - start) / 2);
+    let left = InversePairsHelp(copy, data, start, start + mid);
+    let right = InversePairsHelp(copy, data, start + mid + 1, end);
+    let i = start + mid;
+    let j = end;
+    let count = 0;
+    let indexCopy = end;
+    while (i >= start && j >= start + mid + 1) {
+      if (data[i] > data[j]) {
+        copy[indexCopy--] = data[i--];
+        count = count + j - start - mid;
+      } else {
+        copy[indexCopy--] = data[j--];
+      }
+    }
+    for (; i >= start; i--) copy[indexCopy--] = data[i];
+    for (; j >= start + mid + 1; j--) copy[indexCopy--] = data[j];
+    return left + right + count;
+  }
 }
 
-console.log(reverseDegree([2, 4, 3, 1, 5, 6]));
-// 4 (2,1) (4,3) (4,1) (3,1)
+console.log(InversePairs([2, 4, 3, 1, 5, 6])); // 4 (2,1) (4,3) (4,1) (3,1)
+// console.log(InversePairs([2, 4, 3, 1, 5, 6, 17]));
+// console.log(InversePairs([2, 4, 3, 1, 5, 6, 17, 18]));
