@@ -83,6 +83,13 @@
       - [10.3.1. QUIC](#1031-quic)
     - [10.4. https](#104-https)
   - [11. 浏览器渲染原理](#11-浏览器渲染原理)
+    - [11.1. 构建DOM树](#111-构建dom树)
+    - [11.2. 构建CSSOM树](#112-构建cssom树)
+    - [11.3. 生成render树](#113-生成render树)
+    - [11.4. Layout 布局](#114-layout-布局)
+    - [11.5. Paint 绘制](#115-paint-绘制)
+    - [11.6. Compositing 合成](#116-compositing-合成)
+    - [11.7. Reflowing and Repainting](#117-reflowing-and-repainting)
   - [12. webpack5](#12-webpack5)
     - [12.1. 功能清除](#121-功能清除)
     - [12.2. 长期缓存](#122-长期缓存)
@@ -2361,9 +2368,157 @@ HTTP 协议被认为不安全是因为传输过程容易被监听者勾线监听
 
 ## 11. 浏览器渲染原理
 
+浏览器渲染过程
 
+1. 解析HTML，构建DOM树（这里遇到外链，此时会发起请求）
+2. 解析CSS，生成CSS规则树
+3. 合并DOM树和CSS规则，生成render树
+4. 布局render树（Layout/reflow），负责各元素尺寸、位置的计算
+5. 绘制render树（paint），绘制页面像素信息
+6. 浏览器会将各层的信息发送给GPU，GPU将各层合成（composite），显示在屏幕上
+
+### 11.1. 构建DOM树
+
+```html
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <link href="./style.css" rel="stylesheet" />
+    <title>Critical Path</title>
+  </head>
+  <body>
+    <p>Hello <span>web performance</span> OO!</p>
+    <div><img src="../../images/fe54.png" /></div>
+  </body>
+</html>
+```
+
+无论是DOM还是CSSOM，都是要经过Bytes → characters → tokens → nodes → object model(字节 → 字符 → 令牌 → 节点 → 对象模型。)这个过程。  
+
+DOM树构建过程：当前节点的所有子节点都构建好后才会去构建当前节点的下一个兄弟节点。  
+
+![fe52](images/fe52.png)
+
+1. 转换：浏览器从磁盘或网络读取 HTML 的原始字节，并根据文件的指定编码（例如 UTF-8）将它们转换成各个字符。
+2. 令牌化：浏览器将字符串转换成 W3C HTML5 标准规定的各种令牌，例如，“<html>”、“<body>”，以及其他尖括号内的字符串。每个令牌都具有特殊含义和一组规则。
+3. 词法分析：发出的令牌转换成定义其属性和规则的“对象”。
+4. DOM 构建：由于 HTML 标记定义不同标记之间的关系（一些标记包含在其他标记内），创建的对象链接在一个树数据结构内，此结构也会捕获原始标记中定义的父项-子项关系：HTML 对象是 body 对象的父项，body 是 paragraph 对象的父项，依此类推。
+
+### 11.2. 构建CSSOM树
+
+CSS 字节转换成字符，接着转换成令牌和节点，最后链接到一个称为“CSS 对象模型”(CSSOM) 的树结构内：  
+
+![fe53](images/fe53.png)
+
+CSSOM 为何具有树结构？为页面上的任何对象计算最后一组样式时，浏览器都会先从适用于该节点的最通用规则开始（例如，如果该节点是 body 元素的子项，则应用所有 body 样式），然后通过应用更具体的规则（即规则“向下级联”）以递归方式优化计算的样式。  
+
+### 11.3. 生成render树
+
+![fe54](images/fe54.png)
+
+DOM树从根节点开始遍历可见节点，这里之所以强调了“可见”，是因为如果遇到设置了类似display: none;的不可见节点，在render过程中是会被跳过的（但visibility: hidden; opacity: 0这种仍旧占据空间的节点不会被跳过render），保存各个节点的样式信息及其余节点的从属关系。  
+
+### 11.4. Layout 布局
+
+当渲染对象被创建并添加到树中，它们并没有位置和大小，计算这些值的过程称为layout或reflow。  
+
+Html使用基于流的布局模型，意味着大部分时间，可以以单一的途径进行几何计算。流中靠后的元素并不会影响前面元素的几何特性，所以布局可以在文档中从右向左、自上而下的进行。也存在一些例外，比如html tables。  
+
+坐标系统相对于根frame，使用top和left坐标。  
+
+布局是一个递归的过程，由根渲染对象开始，它对应html文档元素，布局继续递归的通过一些或所有的frame层级，为每个需要几何信息的渲染对象进行计算。  
+
+根渲染对象的位置是0,0，它的大小是viewport－浏览器窗口的可见部分。  
+
+所有的渲染对象都有一个layout或reflow方法，每个渲染对象调用需要布局的children的layout方法。  
+
+layout一般有下面这几个部分：
+
+1. parent渲染对象决定它的宽度
+
+2. parent渲染对象读取chilidren，并：
+
+a. 放置child渲染对象（设置它的x和y）  
+b. 在需要时（它们当前为dirty或是处于全局layout或者其他原因）调用child渲染对象的layout，这将计算child的高度  
+c. parent渲染对象使用child渲染对象的累积高度，以及margin和padding的高度来设置自己的高度－这将被parent渲染对象的parent使用  
+d. 将dirty标识设置为false  
+
+> Dirty bit系统  
+为了不因为每个小变化都全部重新布局，浏览器使用一个dirty bit系统，一个渲染对象发生了变化或是被添加了，就标记它及它的children为dirty——需要layout。存在两个标识——dirty及children are dirty，children are dirty说明即使这个渲染对象可能没问题，但它至少有一个child需要layout。  
+
+### 11.5. Paint 绘制
+
+第一次出现的节点称为first meaningful paint。在绘制或光栅化阶段，浏览器将在布局阶段计算的每个框转换为屏幕上的实际像素。绘画包括将元素的每个可视部分绘制到屏幕上，包括文本、颜色、边框、阴影和替换的元素（如按钮和图像）。浏览器需要非常快地完成这项工作。  
+
+为了确保平滑滚动和动画，占据主线程的所有内容，包括计算样式，以及回流和绘制，必须让浏览器在16.67毫秒内完成。在2048x 1536，iPad有超过314.5万像素将被绘制到屏幕上。那是很多像素需要快速绘制。为了确保重绘的速度比初始绘制的速度更快，屏幕上的绘图通常被分解成数层。如果发生这种情况，则需要进行合成。  
+
+绘制可以将布局树中的元素分解为多个层。将内容提升到GPU上的层（而不是CPU上的主线程）可以提高绘制和重新绘制性能。有一些特定的属性和元素可以实例化一个层，包括<video>和<canvas>，任何CSS属性为opacity、3D转换、will-change的元素，还有一些其他元素。这些节点将与子节点一起绘制到它们自己的层上，除非子节点由于上述一个（或多个）原因需要自己的层。  
+
+层确实可以提高性能，但是它以内存管理为代价，因此不应作为web性能优化策略的一部分过度使用。  
+
+![fe55](images/fe55.png)
+
+在 Chrome 中其实有几种不同的层类型：  
+
+RenderLayers 渲染层，这是负责对应 DOM 子树.  
+GraphicsLayers 图形层，这是负责对应 RenderLayers 子树。  
+
+每个 GraphicsLayer 都有一个 GraphicsContext，GraphicsContext 会负责输出该层的位图，位图是存储在共享内存中，作为纹理上传到 GPU 中，最后由 GPU 将多个位图进行合成，然后 draw 到屏幕上，此时，我们的页面也就展现到了屏幕上。  
+
+GraphicsContext 绘图上下文的责任就是向屏幕进行像素绘制(这个过程是先把像素级的数据写入位图中，然后再显示到显示器)，在chrome里，绘图上下文是包裹了的 Skia（chrome 自己的 2d 图形绘制库） 某些特殊的渲染层会被认为是合成层（Compositing Layers），合成层拥有单独的 GraphicsLayer，而其他不是合成层的渲染层，则和其第一个拥有 GraphicsLayer 父层公用一个。  
+
+### 11.6. Compositing 合成
+
+在 DOM 树中每个节点都会对应一个 LayoutObject，当他们的 LayoutObject 处于相同的坐标空间时，就会形成一个 RenderLayers ，也就是渲染层。RenderLayers 来保证页面元素以正确的顺序合成，这时候就会出现层合成（composite），从而正确处理透明元素和重叠元素的显示。  
+
+> 合成层创建标准  
+
+- 3D 或透视变换(perspective transform) CSS 属性
+- 使用加速视频解码的 <video> 元素 拥有 3D
+- (WebGL) 上下文或加速的 2D 上下文的 <canvas> 元素
+- 对自己的 opacity 做 CSS动画或使用一个动画变换的元素
+- 拥有加速 CSS 过滤器的元素
+- 元素有一个包含复合层的后代节点(换句话说，就是一个元素拥有一个子元素，该子元素在自己的层里)
+- 元素有一个z-index较低且包含一个复合层的兄弟元素(换句话说就是该元素在复合层上面渲染)  
+
+> 合成层的优点:一旦renderLayer提升为了合成层就会有自己的绘图上下文，并且会开启硬件加速，有利于性能提升
+
+- 合成层的位图，会交由 GPU 合成，比 CPU 处理要快
+- 当需要 repaint 时，只需要 repaint 本身，不会影响到其他的层
+- 对于 transform 和 opacity 效果，不会触发 layout 和 paint  
+
+### 11.7. Reflowing and Repainting
+
+reflow(回流): 根据Render Tree布局(几何属性)，意味着元素的内容、结构、位置或尺寸发生了变化，需要重新计算样式和渲染树；  
+repaint(重绘): 意味着元素发生的改变只影响了节点的一些样式（背景色，边框颜色，文字颜色等），只需要应用新样式绘制这个元素就可以了；  
+reflow回流的成本开销要高于repaint重绘，一个节点的回流往往回导致子节点以及同级节点的回流；  
+
+> 引起reflow回流  
+
+1. 页面第一次渲染（初始化）
+2. DOM树变化（如：增删节点）
+3. Render树变化（如：padding改变）
+4. 浏览器窗口resize
+5. 获取元素的某些属性：  
+浏览器为了获得正确的值也会提前触发回流，这样就使得浏览器的优化失效了，这些属性包括offsetLeft、offsetTop、offsetWidth、offsetHeight、 scrollTop/Left/Width/Height、clientTop/Left/Width/Height、调用了getComputedStyle()或者IE的currentStyle  
+
+> 引起repaint重绘  
+
+1. reflow回流必定引起repaint重绘，重绘可以单独触发
+2. 背景色、颜色、字体改变（注意：字体大小发生变化时，会触发回流）  
+
+> 优化reflow、repaint触发次数  
+
+1. 避免逐个修改节点样式，尽量一次性修改
+2. 使用DocumentFragment将需要多次修改的DOM元素缓存，最后一次性append到真实DOM中渲染
+3. 可以将需要多次修改的DOM元素设置display: none，操作完再显示。（因为隐藏元素不在render树内，因此修改隐藏元素不会触发回流重绘）
+4. 避免多次读取某些属性（见上）
+5. 将复杂的节点元素脱离文档流，降低回流成本
 
 参考资料：[DOM操作成本到底高在哪儿](https://segmentfault.com/a/1190000014070240)  
+[DOM和CSSDOM树渲染过程](https://www.jianshu.com/p/61b3409bc3a4)  
+[详谈层合成（composite）](https://juejin.cn/post/6844903502678867981)  
+[Populating the page: how browsers work](https://developer.mozilla.org/en-US/docs/Web/Performance/How_browsers_work)  
 
 ## 12. webpack5
 
