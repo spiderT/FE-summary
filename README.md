@@ -119,6 +119,9 @@
     - [14.2. 策略模式](#142-策略模式)
     - [14.3. 代理模式](#143-代理模式)
     - [14.4. 迭代器模式](#144-迭代器模式)
+    - [14.5. 发布-订阅模式](#145-发布-订阅模式)
+    - [14.6. 命令模式](#146-命令模式)
+    - [14.7. 组合模式](#147-组合模式)
   - [15. 常见数据结构](#15-常见数据结构)
   - [16. 常见算法](#16-常见算法)
     - [16.1. 深度优先遍历（DFS）和广度优先遍历（BFS）](#161-深度优先遍历dfs和广度优先遍历bfs)
@@ -3696,6 +3699,230 @@ console.log(
 迭代器模式是指提供一种方法顺序访问一个聚合对象中的各个元素，而又不需要暴露该对象的内部表示。  
 
 在使用迭代器模式之后，即使不关心对象的内部构造，也可以按顺序访问其中的每个元素.  
+
+```js
+// 封装 对象和数组的遍历
+function each(obj, cb) {
+  let value;
+
+  if (Array.isArray(obj)) {
+    for (let i = 0; i < obj.length; ++i) {
+      value = cb.call(obj[i], i, obj[i]);
+
+      if (value === false) {
+        break;
+      }
+    }
+  } else {
+    for (let i in obj) {
+      value = cb.call(obj[i], i, obj[i]);
+
+      if (value === false) {
+        break;
+      }
+    }
+  }
+}
+```
+
+### 14.5. 发布-订阅模式
+
+也称作观察者模式，定义了对象间的一种一对多的依赖关系，当一个对象的状态发 生改变时，所有依赖于它的对象都将得到通知.  
+
+> 优点  
+
+一为时间上的解耦，二为对象之间的解耦。可以用在异步编程中与MV*框架中  
+
+> 缺点  
+
+创建订阅者本身要消耗一定的时间和内存，订阅的处理函数不一定会被执行，驻留内存有性能开销  
+弱化了对象之间的联系，复杂的情况下可能会导致程序难以跟踪维护和理解  
+
+```js
+// 小A在公司C完成了笔试及面试，小B也在公司C完成了笔试。他们焦急地等待结果，每隔半天就电话询问公司C，导致公司C很不耐烦。一种解决办法是 AB直接把联系方式留给C，有结果的话C自然会通知AB这里的“询问”属于显示调用，“留给”属于订阅，“通知”属于发布
+
+// 观察者
+const observer = {
+  // 订阅集合
+  subscribes: [],
+
+  // 订阅
+  subscribe: function (type, fn) {
+    if (!this.subscribes[type]) {
+      this.subscribes[type] = [];
+    }
+
+    // 收集订阅者的处理
+    typeof fn === "function" && this.subscribes[type].push(fn);
+  },
+
+  // 发布  可能会携带一些信息发布出去
+  publish: function () {
+    const type = [].shift.call(arguments),
+      fns = this.subscribes[type];
+
+    // 不存在的订阅类型，以及订阅时未传入处理回调的
+    if (!fns || !fns.length) {
+      return;
+    }
+
+    // 挨个处理调用
+    for (let i = 0; i < fns.length; ++i) {
+      fns[i].apply(this, arguments);
+    }
+  },
+
+  // 删除订阅
+  remove: function (type, fn) {
+    // 删除全部
+    if (typeof type === "undefined") {
+      this.subscribes = [];
+      return;
+    }
+
+    const fns = this.subscribes[type];
+
+    // 不存在的订阅类型，以及订阅时未传入处理回调的
+    if (!fns || !fns.length) {
+      return;
+    }
+
+    if (typeof fn === "undefined") {
+      fns.length = 0;
+      return;
+    }
+
+    // 挨个处理删除
+    for (let i = 0; i < fns.length; ++i) {
+      if (fns[i] === fn) {
+        fns.splice(i, 1);
+      }
+    }
+  },
+};
+
+// 订阅岗位列表
+function jobListForA(jobs) {
+  console.log("A", jobs);
+}
+
+function jobListForB(jobs) {
+  console.log("B", jobs);
+}
+
+observer.subscribe("job", jobListForA);
+observer.subscribe("job", jobListForB);
+
+
+observer.publish("job", ["前端", "后端", "测试"]); // 输出A和B的岗位
+
+// A都取消订阅了岗位
+observer.remove("job", jobListForA);
+
+observer.publish("job", ["前端", "后端", "测试"]); // 输出B的岗位
+```
+
+### 14.6. 命令模式
+
+用一种松耦合的方式来设计程序，使得请求发送者和请求接收者能够消除彼此之间的耦合关系  
+命令（command）指的是一个执行某些特定事情的指令  
+
+核心: 命令中带有execute执行、undo撤销、redo重做等相关命令方法，建议显示地指示这些方法名  
+
+```js
+function IncrementCommand() {
+  // 当前值
+  this.val = 0;
+  // 命令栈
+  this.stack = [];
+  // 栈指针位置
+  this.stackPosition = -1;
+}
+
+IncrementCommand.prototype = {
+  constructor: IncrementCommand,
+
+  // 执行
+  execute: function () {
+    this._clearRedo();
+
+    // 定义执行的处理
+    const command = function () {
+      this.val += 1;
+    }.bind(this);
+
+    // 执行并缓存起来
+    command();
+
+    this.stack.push(command);
+
+    this.stackPosition++;
+
+    this.getValue();
+  },
+
+  canUndo: function () {
+    return this.stackPosition >= 0;
+  },
+
+  canRedo: function () {
+    return this.stackPosition < this.stack.length - 1;
+  },
+
+  // 撤销
+  undo: function () {
+    if (!this.canUndo()) {
+      return;
+    }
+
+    this.stackPosition--;
+
+    // 命令的撤销，与执行的处理相反
+    const command = function () {
+      this.val -= 1;
+    }.bind(this);
+
+    // 撤销后不需要缓存
+    command();
+
+    this.getValue();
+  },
+
+  // 重做
+  redo: function () {
+    if (!this.canRedo()) {
+      return;
+    }
+
+    // 执行栈顶的命令
+    this.stack[++this.stackPosition]();
+
+    this.getValue();
+  },
+
+  // 在执行时，已经撤销的部分不能再重做
+  _clearRedo: function () {
+    this.stack = this.stack.slice(0, this.stackPosition + 1);
+  },
+
+  // 获取当前值
+  getValue: function () {
+    console.log(this.val);
+  },
+};
+```
+
+### 14.7. 组合模式
+
+是用小的子对象来构建更大的 对象，而这些小的子对象本身也许是由更小 的“孙对象”构成的。  
+
+**核心**: 可以用树形结构来表示这种“部分- 整体”的层次结构。调用组合对象 的execute方法，程序会递归调用组合对象 下面的叶对象的execute方法.  
+
+
+
+
+
+
 
 
 
