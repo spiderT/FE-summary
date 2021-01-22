@@ -135,6 +135,11 @@
     - [15.4. 树](#154-树)
       - [15.4.1. 二叉树](#1541-二叉树)
       - [15.4.2. 二分搜索树](#1542-二分搜索树)
+      - [15.4.3. 实现树的遍历](#1543-实现树的遍历)
+      - [15.4.4. AVL树](#1544-avl树)
+    - [15.5. Trie 字典树](#155-trie-字典树)
+    - [15.6. 并查集](#156-并查集)
+    - [15.7. 堆](#157-堆)
   - [16. 常见算法](#16-常见算法)
     - [16.1. 深度优先遍历（DFS）和广度优先遍历（BFS）](#161-深度优先遍历dfs和广度优先遍历bfs)
       - [16.1.1. 深度优先遍历（DFS）](#1611-深度优先遍历dfs)
@@ -4305,7 +4310,392 @@ class LinkList {
 
 这种存储方式很适合于数据搜索。当需要查找 6 的时候，因为需要查找的值比根节点的值大，所以只需要在根节点的右子树上寻找，大大提高了搜索效率。  
 
+```js
+// 二分搜索树
+class Node {
+  constructor(value) {
+    this.value = value;
+    this.left = null;
+    this.right = null;
+  }
+}
+class BST {
+  constructor() {
+    this.root = null;
+    this.size = 0;
+  }
+  getSize() {
+    return this.size;
+  }
+  isEmpty() {
+    return this.size === 0;
+  }
+  addNode(v) {
+    this.root = this._addChild(this.root, v);
+  }
+  // 添加节点时，需要比较添加的节点值和当前
+  // 节点值的大小
+  _addChild(node, v) {
+    if (!node) {
+      this.size++;
+      return new Node(v);
+    }
+    if (node.value > v) {
+      node.left = this._addChild(node.left, v);
+    } else if (node.value < v) {
+      node.right = this._addChild(node.right, v);
+    }
+    return node;
+  }
+}
+```
 
+#### 15.4.3. 实现树的遍历
+
+对于树的遍历来说，有三种遍历方法，分别是先序遍历、中序遍历、后序遍历。三种遍历的区别在于何时访问节点。在遍历树的过程中，每个节点都会遍历三次，分别是遍历到自己，遍历左子树和遍历右子树。如果需要实现先序遍历，那么只需要第一次遍历到节点时进行操作即可。
+
+```js
+// 先序遍历可用于打印树的结构
+  // 先序遍历先访问根节点，然后访问左节点，最后访问右节点。
+  preTraversal() {
+    this._pre(this.root);
+  }
+  _pre(node) {
+    if (node) {
+      console.log(node.value);
+      this._pre(node.left);
+      this._pre(node.right);
+    }
+  }
+  // 中序遍历可用于排序
+  // 对于 BST 来说，中序遍历可以实现一次遍历就得到有序的值
+  // 中序遍历表示先访问左节点，然后访问根节点，最后访问右节点。
+  midTraversal() {
+    this._mid(this.root);
+  }
+  _mid(node) {
+    if (node) {
+      this._mid(node.left);
+      console.log(node.value);
+      this._mid(node.right);
+    }
+  }
+  // 后序遍历可用于先操作子节点, 再操作父节点的场景
+  // 后序遍历表示先访问左节点，然后访问右节点，最后访问根节点。
+  backTraversal() {
+    this._back(this.root);
+  }
+  _back(node) {
+    if (node) {
+      this._back(node.left);
+      this._back(node.right);
+      console.log(node.value);
+    }
+  }
+```
+
+#### 15.4.4. AVL树
+
+> 定义  
+
+1. AVL树是一颗二叉查找树。
+2. AVL树是一棵空树或它的左右两个子树的高度差的绝对值不超过1，并且左右两个子树都是一棵AVL树。  
+
+树上某结点的左子树与右子树的高度（深度）差即为该结点的平衡因子（Balance Factor），那么AVL树的所有结点的平衡因子只可能是 [公式] ， [公式] 或 [公式] 中的一个。  
+
+对于 AVL 树来说，添加节点会有四种情况
+
+![fe56](images/fe56.png)
+
+对于左左情况来说，新增加的节点位于节点 2 的左侧，这时树已经不平衡，需要旋转。因为搜索树的特性，节点比左节点大，比右节点小，所以旋转以后也要实现这个特性。  
+
+AVL树中插入一个节点后失衡的情况可以分为以下四种：  
+
+1. 新节点在失衡节点左子树左子树中，此种情况需要关于失衡节点进行一次右旋操作。
+2. 新节点在失衡节点右子树右子树中，此种情况需要关于失衡节点进行一次左旋操作。
+3. 新节点在失衡节点左子树右子树中，此种情况需要关于失衡节点左儿子进行一次左旋操作，使得失衡节点左儿子变为失衡节点左儿子的右儿子的左儿子，也就是变为第一种情况，然后再关于失衡节点进行一次右旋操作。
+4. 新节点在失衡节点右子树左子树中，此种情况需要关于失衡节点右儿子进行一次右旋操作，使得失衡节点右儿子变为失衡节点右儿子的左儿子的右儿子，也就是变为第二种情况，然后再关于失衡节点进行一次左旋操作。  
+
+![fe57](images/fe57.gif)
+
+```js
+class Node {
+  constructor(value) {
+    this.value = value;
+    this.left = null;
+    this.right = null;
+    this.height = 1;
+  }
+}
+
+class AVL {
+  constructor() {
+    this.root = null;
+  }
+  addNode(v) {
+    this.root = this._addChild(this.root, v);
+  }
+  _addChild(node, v) {
+    if (!node) {
+      return new Node(v);
+    }
+    if (node.value > v) {
+      node.left = this._addChild(node.left, v);
+    } else if (node.value < v) {
+      node.right = this._addChild(node.right, v);
+    } else {
+      node.value = v;
+    }
+    node.height =
+      1 + Math.max(this._getHeight(node.left), this._getHeight(node.right));
+    let factor = this._getBalanceFactor(node);
+    // 当需要右旋时，根节点的左树一定比右树高度高
+    if (factor > 1 && this._getBalanceFactor(node.left) >= 0) {
+      return this._rightRotate(node);
+    }
+    // 当需要左旋时，根节点的左树一定比右树高度矮
+    if (factor < -1 && this._getBalanceFactor(node.right) <= 0) {
+      return this._leftRotate(node);
+    }
+    // 左右情况
+    // 节点的左树比右树高，且节点的左树的右树比节点的左树的左树高
+    if (factor > 1 && this._getBalanceFactor(node.left) < 0) {
+      node.left = this._leftRotate(node.left);
+      return this._rightRotate(node);
+    }
+    // 右左情况
+    // 节点的左树比右树矮，且节点的右树的右树比节点的右树的左树矮
+    if (factor < -1 && this._getBalanceFactor(node.right) > 0) {
+      node.right = this._rightRotate(node.right);
+      return this._leftRotate(node);
+    }
+
+    return node;
+  }
+  _getHeight(node) {
+    if (!node) return 0;
+    return node.height;
+  }
+  _getBalanceFactor(node) {
+    return this._getHeight(node.left) - this._getHeight(node.right);
+  }
+  // 节点右旋
+  //           5                    2
+  //         /   \                /   \
+  //        2     6   ==>       1      5
+  //       /  \               /       /  \
+  //      1    3             new     3    6
+  //     /
+  //    new
+  _rightRotate(node) {
+    // 旋转后新根节点
+    let newRoot = node.left;
+    // 需要移动的节点
+    let moveNode = newRoot.right;
+    // 节点 2 的右节点改为节点 5
+    newRoot.right = node;
+    // 节点 5 左节点改为节点 3
+    node.left = moveNode;
+    // 更新树的高度
+    node.height =
+      1 + Math.max(this._getHeight(node.left), this._getHeight(node.right));
+    newRoot.height =
+      1 +
+      Math.max(this._getHeight(newRoot.left), this._getHeight(newRoot.right));
+
+    return newRoot;
+  }
+  // 节点左旋
+  //           4                    6
+  //         /   \                /   \
+  //        2     6   ==>       4      7
+  //             /  \         /   \      \
+  //            5     7      2     5      new
+  //                   \
+  //                    new
+  _leftRotate(node) {
+    // 旋转后新根节点
+    let newRoot = node.right;
+    // 需要移动的节点
+    let moveNode = newRoot.left;
+    // 节点 6 的左节点改为节点 4
+    newRoot.left = node;
+    // 节点 4 右节点改为节点 5
+    node.right = moveNode;
+    // 更新树的高度
+    node.height =
+      1 + Math.max(this._getHeight(node.left), this._getHeight(node.right));
+    newRoot.height =
+      1 +
+      Math.max(this._getHeight(newRoot.left), this._getHeight(newRoot.right));
+
+    return newRoot;
+  }
+}
+```
+
+### 15.5. Trie 字典树
+
+trie，又称前缀树或字典树，是一种有序树，用于保存关联数组，其中的键通常是字符串。这个结构的作用大多是为了方便搜索字符串，该树有以下几个特点  
+
+1. 根节点代表空字符串，每个节点都有 N（假如搜索英文字符，就有 26 条） 条链接，每条链接代表一个字符
+2. 节点不存储字符，只有路径才存储，这点和其他的树结构不同
+3. 从根节点开始到任意一个节点，将沿途经过的字符连接起来就是该节点对应的字符串
+
+![fe58](images/fe58.png)
+
+```js
+// 以搜索英文字符为例
+class TrieNode {
+  constructor() {
+    // 代表每个字符经过节点的次数
+    this.path = 0;
+    // 代表到该节点的字符串有几个
+    this.end = 0;
+    // 链接
+    this.next = new Array(26).fill(null);
+  }
+}
+class Trie {
+  constructor() {
+    // 根节点，代表空字符
+    this.root = new TrieNode();
+  }
+  // 插入字符串
+  insert(str) {
+    if (!str) return;
+    let node = this.root;
+    for (let i = 0; i < str.length; i++) {
+      // 获得字符先对应的索引
+      let index = str[i].charCodeAt() - "a".charCodeAt();
+      // 如果索引对应没有值，就创建
+      if (!node.next[index]) {
+        node.next[index] = new TrieNode();
+      }
+      node.path += 1;
+      node = node.next[index];
+    }
+    node.end += 1;
+  }
+  // 搜索字符串出现的次数
+  search(str) {
+    if (!str) return;
+    let node = this.root;
+    for (let i = 0; i < str.length; i++) {
+      let index = str[i].charCodeAt() - "a".charCodeAt();
+      // 如果索引对应没有值，代表没有需要搜素的字符串
+      if (!node.next[index]) {
+        return 0;
+      }
+      node = node.next[index];
+    }
+    return node.end;
+  }
+  // 删除字符串
+  delete(str) {
+    if (!this.search(str)) return;
+    let node = this.root;
+    for (let i = 0; i < str.length; i++) {
+      let index = str[i].charCodeAt() - "a".charCodeAt();
+      // 如果索引对应的节点的 Path 为 0，代表经过该节点的字符串
+      // 已经一个，直接删除即可
+      if (--node.next[index].path == 0) {
+        node.next[index] = null;
+        return;
+      }
+      node = node.next[index];
+    }
+    node.end -= 1;
+  }
+}
+```
+
+### 15.6. 并查集
+
+并查集是一种特殊的树结构，用于处理一些不交集的合并及查询问题。该结构中每个节点都有一个父节点，如果只有当前一个节点，那么该节点的父节点指向自己。  
+
+这个结构中有两个重要的操作，分别是：  
+
+Find：确定元素属于哪一个子集。它可以被用来确定两个元素是否属于同一子集。  
+Union：将两个子集合并成同一个集合。  
+
+```js
+class DisjointSet {
+  // 初始化样本
+  constructor(count) {
+    // 初始化时，每个节点的父节点都是自己
+    this.parent = new Array(count)
+    // 用于记录树的深度，优化搜索复杂度
+    this.rank = new Array(count)
+    for (let i = 0; i < count; i++) {
+      this.parent[i] = i
+      this.rank[i] = 1
+    }
+  }
+  find(p) {
+    // 寻找当前节点的父节点是否为自己，不是的话表示还没找到
+    // 开始进行路径压缩优化
+    // 假设当前节点父节点为 A
+    // 将当前节点挂载到 A 节点的父节点上，达到压缩深度的目的
+    while (p != this.parent[p]) {
+      this.parent[p] = this.parent[this.parent[p]]
+      p = this.parent[p]
+    }
+    return p
+  }
+  isConnected(p, q) {
+    return this.find(p) === this.find(q)
+  }
+  // 合并
+  union(p, q) {
+    // 找到两个数字的父节点
+    let i = this.find(p)
+    let j = this.find(q)
+    if (i === j) return
+    // 判断两棵树的深度，深度小的加到深度大的树下面
+    // 如果两棵树深度相等，那就无所谓怎么加
+    if (this.rank[i] < this.rank[j]) {
+      this.parent[i] = j
+    } else if (this.rank[i] > this.rank[j]) {
+      this.parent[j] = i
+    } else {
+      this.parent[i] = j
+      this.rank[j] += 1
+    }
+  }
+}
+```
+
+### 15.7. 堆
+
+参考资料：https://blog.csdn.net/weixin_44213940/article/details/112725667  
+
+> 定义  
+
+Heap是一种数据结构具有以下的特点：  
+1）完全二叉树；  
+2）heap中存储的值是偏序；  
+
+Min-heap: 父节点的值小于或等于子节点的值；  
+Max-heap: 父节点的值大于或等于子节点的值；  
+
+大根堆就是每个最大的数字在每个子树的最上方，及大根堆pop值为最大值，小根堆反之.  
+
+> 堆的存储  
+
+堆的存储一般由数组表示，由于堆的实质就是完全二叉树.  
+
+![fe59](images/fe59.png)
+
+堆的每个节点的左边子节点索引是 i * 2 + 1，右边是 i * 2 + 2，父节点是 (i - 1) /2。  
+
+堆有两个核心的操作，分别是 siftUp 和 siftDown 。前者用于添加元素，后者用于删除根节点。  
+
+siftUp 的核心思路是一路将节点与父节点对比大小，如果比父节点大，就和父节点交换位置。  
+
+siftDown 的核心思路是先将根节点和末尾交换位置，然后移除末尾元素。接下来循环判断父节点和两个子节点的大小，如果子节点大，就把最大的子节点和父节点交换。  
+
+![fe60](images/fe60.png)
 
 
 
