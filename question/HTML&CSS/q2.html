@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+    }
+
+    html body {
+      height: 1000px;
+      width: 100%;
+    }
+
+    h1 {
+      height: 100px;
+      position: relative;
+      background-color: red;
+    }
+
+    .sticky-nav {
+      position: sticky;
+      top: 0;
+      width: 100%;
+      height: 80px;
+      background-color: green;
+    }
+
+    .scroll-container {
+      height: 800px;
+      width: 100%;
+      background-color: grey;
+    }
+  </style>
+  <body>
+    <h1>高100px</h1>
+    <div class="sticky-nav">这是一个导航栏</div>
+    <p class="scroll-container">发生滚动</p>
+  </body>
+</html>
