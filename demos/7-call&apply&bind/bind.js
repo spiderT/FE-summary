@@ -10,6 +10,7 @@ Function.prototype.myBind = function (context) {
   // 返回一个函数
   return function F() {
     // 可能返回了一个构造函数，可以 new F()，所以需要判断
+    // 原型链对象上的属性不能丢失
     if (this instanceof F) {
       return new _this(...args, ...arguments);
     }
