@@ -1,6 +1,8 @@
 # 前端总结
 
-## [JS/TS](./JS.md)
+## [JS](./JS.md)
+
+## [TS](./TypeScript.md)
 
 ## [HTML&CSS](./CSS.md)
 
