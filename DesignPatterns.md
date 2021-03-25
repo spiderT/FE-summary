@@ -107,8 +107,8 @@ function createPerson(name, age) {
 
 const p1 = createPerson("Andy", 20);
 const p2 = createPerson("Candy", 35);
-p1.job("FE"); // Andyis a FE
-p2.job("RD"); // Candyis a RD
+p1.job("FE"); // Andy is a FE
+p2.job("RD"); // Candy is a RD
 ```
 
 ### 4. 抽象工厂（Abstract Factory）模式
@@ -157,23 +157,194 @@ window.addEventListener("scroll", throttle(handle));
 
 ### 9. 装饰（Decorator）模式
 
-动态的给对象增加一些职责，即增加其额外的功能。
+动态的给对象增加一些职责，即增加其额外的功能。而不会影响从这个类中派生的其他对象。  
+是一种“即用即付”的方式，能够在不改变对 象自身的基础上，在程序运行期间给对象动态地 添加职责.  
+
+核心: 是为对象动态加入行为，经过多重包装，可以形成一条装饰链.  
+
+```js
+// 使用传统面向对象的方法来实现装饰，添加技能
+function Person() {}
+
+Person.prototype.skill = function () {
+  console.log("数学");
+};
+
+// 装饰器，还会音乐
+function MusicDecorator(person) {
+  this.person = person;
+}
+
+MusicDecorator.prototype.skill = function () {
+  this.person.skill();
+  console.log("音乐");
+};
+
+// 装饰器，还会跑步
+function RunDecorator(person) {
+  this.person = person;
+}
+
+RunDecorator.prototype.skill = function () {
+  this.person.skill();
+  console.log("跑步");
+};
+
+const person = new Person();
+
+// 装饰一下
+const person1 = new MusicDecorator(person);
+person1 = new RunDecorator(person1);
+
+person.skill(); // 数学
+person1.skill(); // 数学 音乐 跑步
+```
 
 ### 10. 外观（Facade）模式
 
-为多个复杂的子系统提供一个一致的接口，使这些子系统更加容易被访问。
+为子系统中的一组接口提供一个一致的界面，定义一个高层接口，这个接口使子系统更加容易使用  
+
+核心: 可以通过请求外观接口来达到访问子系统，也可以选择越过外观来直接访问子系统  
+
+实现: 外观模式在JS中，可以认为是一组函数的集合  
+
+```js
+// 三个处理函数
+function start() {
+  console.log("start");
+}
+
+function doing() {
+  console.log("doing");
+}
+
+function end() {
+  console.log("end");
+}
+
+// 外观函数，将一些处理统一起来，方便调用
+function execute() {
+  start();
+  doing();
+  end();
+}
+
+// 调用init开始执行
+function init() {
+  // 此处直接调用了高层函数，也可以选择越过它直接调用相关的函数
+  execute();
+}
+
+init(); // start doing end
+```
 
 ### 11. 享元（Flyweight）模式
 
-运用共享技术来有效地支持大量细粒度对象的复用。
+运用共享技术来有效地支持大量细粒度对象的复用。是一种用于性能优化的模式，它的目标是尽量减少共享对象的数量.  
+
+强调将对象的属性划分为内部状态（属性）与外部状态（属性）。内部状态用于对象的共享，通常不变；而外部状态则剥离开来，由具体的场景决定。
+
+```js
+// 要对某个班进行身体素质测量，仅测量身高体重来评判
+
+// 健康测量
+function Fitness(sex) {
+  this.sex = sex;
+}
+
+// 工厂: 创建可共享的对象
+const FitnessFactory = {
+  objs: [],
+  create(sex) {
+    if (!this.objs[sex]) {
+      this.objs[sex] = new Fitness(sex);
+    }
+    return this.objs[sex];
+  },
+};
+
+// 管理器: 管理非共享的部分
+const FitnessManager = {
+  fitnessData: {},
+  // 添加一项
+  add(name, sex, age, height, weight) {
+    const fitness = FitnessFactory.create(sex);
+    // 存储变化的数据
+    this.fitnessData[name] = {
+      age,
+      height,
+      weight,
+    };
+    return fitness;
+  },
+
+  // 从存储的数据中获取，更新至当前正在使用的对象
+  updateFitnessData(name, obj) {
+    const fitnessData = this.fitnessData[name];
+    for (const item in fitnessData) {
+      if (fitnessData.hasOwnProperty(item)) {
+        obj[item] = fitnessData[item];
+      }
+    }
+  },
+};
+
+// 开始评判
+Fitness.prototype.judge = function (name) {
+  // 操作前先更新当前状态（从外部状态管理器中获取）
+  FitnessManager.updateFitnessData(name, this);
+
+  const ret = name + ": ";
+  if (this.sex === "male") {
+    ret += this.judgeMale();
+  } else {
+    ret += this.judgeFemale();
+  }
+  console.log(ret);
+};
+
+// 男性评判规则
+Fitness.prototype.judgeMale = function () {
+  const ratio = this.height / this.weight;
+  return this.age > 20 ? ratio > 3.5 : ratio > 2.8;
+};
+
+// 女性评判规则
+Fitness.prototype.judgeFemale = function () {
+  const ratio = this.height / this.weight;
+  return this.age > 20 ? ratio > 4 : ratio > 3;
+};
+
+const a = FitnessManager.add("A", "male", 18, 160, 80);
+const b = FitnessManager.add("B", "male", 21, 180, 70);
+const c = FitnessManager.add("C", "female", 28, 160, 80);
+const d = FitnessManager.add("D", "male", 18, 170, 60);
+const e = FitnessManager.add("E", "female", 18, 160, 40);
+
+// 开始评判
+a.judge("A"); // A: false
+b.judge("B"); // B: false
+c.judge("C"); // C: false
+d.judge("D"); // D: true
+e.judge("E"); // E: true
+```
 
 ### 12. 组合（Composite）模式
 
-将对象组合成树状层次结构，使用户对单个对象和组合对象具有一致的访问性。
+将对象组合成树状层次结构，使用户对单个对象和组合对象具有一致的访问性。  
+
+是用小的子对象来构建更大的 对象，而这些小的子对象本身也许是由更小 的“孙对象”构成的。  
 
 ### 13. 模板方法（TemplateMethod）模式
 
-定义一个操作中的算法骨架，而将算法的一些步骤延迟到子类中，使得子类可以不改变该算法结构的情况下重定义该算法的某些特定步骤。
+定义一个操作中的算法骨架，而将算法的一些步骤延迟到子类中，使得子类可以不改变该算法结构的情况下重定义该算法的某些特定步骤。  
+
+模板方法模式由两部分结构组成，第一部分是抽象父类，第二部分是具体的实现子类。
+
+核心: 在抽象父类中封装子类的算法框架，它的 init方法可作为一个算法的模板，指导子类以何种顺序去执行哪些方法。由父类分离出公共部分，要求子类重写某些父类的（易变化的）抽象方法, 模板方法模式一般的实现方式为继承.  
+
+
+
 
 ### 14. 策略（Strategy）模式
 
@@ -309,7 +480,18 @@ eventTrigger["incrementUndo"](); // 1
 
 ### 16. 职责链（Chain of Responsibility）模式
 
-把请求从链中的一个对象传到下一个对象，直到请求被响应为止。通过这种方式去除对象之间的耦合。
+把请求从链中的一个对象传到下一个对象，直到请求被响应为止。通过这种方式去除对象之间的耦合。  
+
+核心: 请求发送者只需要知道链中的第一个节点，弱化发送者和一组接收者之间的强联系，可以便捷地在职责链中增加或删除一个节点，同样地，指定谁是第一个节点也很便捷.  
+
+
+
+
+
+
+
+
+
 
 ### 17. 状态（State）模式
 
