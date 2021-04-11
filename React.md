@@ -22,7 +22,6 @@
     - [6. constructor 和 componentdidMount 的区别 为什么请求不能放在 constructor 里面](#6-constructor-和-componentdidmount-的区别-为什么请求不能放在-constructor-里面)
     - [7. React hook底层优化原理，为什么会有hooks，react hooks里的useCallback了解吗](#7-react-hook底层优化原理为什么会有hooksreact-hooks里的usecallback了解吗)
     - [8. react fiber](#8-react-fiber)
-    - [8. RN 和 flutter的区别](#8-rn-和-flutter的区别)
     - [9. react的context原理](#9-react的context原理)
     - [10. redux的架构，dispach的是什么概念，redux-thunk](#10-redux的架构dispach的是什么概念redux-thunk)
     - [11. redux和mobx](#11-redux和mobx)
@@ -301,14 +300,6 @@ https://segmentfault.com/a/1190000018250127
 
 
 
-
-### 8. RN 和 flutter的区别
-
-参考：https://time.geekbang.org/column/article/104040  
-https://time.geekbang.org/column/article/105703
-
-1. React Native 使用原生控件承载界面渲染，由于框架本身不负责渲染，而是由原生代理，因此我们还需要面对大量平台相关的逻辑;通过 JavaScript 虚拟机进行原生接口的调用，带来的通信低效.
-2. Flutter提供了一整套从底层渲染逻辑到上层开发语言的完整解决方案：视图渲染完全闭环在其框架内部，不依赖于底层操作系统提供的任何组件，从根本上保证了视图渲染在 Android 和 iOS 上的高度一致性；Flutter 的开发语言 Dart，借助于先进的工具链和编译器，成为了少数同时支持 JIT 和 AOT 的语言之一，开发期调试效率高，发布期运行速度快、执行性能好，在代码执行效率上可以媲美原生 App。而这与 React Native 所用的只能解释执行的 JavaScript，又拉开了性能差距。(渲染引擎依靠跨平台的 Skia 图形库来实现,开发语言选用的是同时支持 JIT（Just-in-Time，即时编译）和 AOT（Ahead-of-Time，预编译）的 Dar)
 
 ### 9. react的context原理
 

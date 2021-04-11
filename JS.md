@@ -59,7 +59,7 @@
     - [37. 求dom的层级深度](#37-求dom的层级深度)
     - [38. 哪些是类数组，怎么区分是类数组？](#38-哪些是类数组怎么区分是类数组)
     - [39. ts T](#39-ts-t)
-    - [39. 实现isArray函数](#39-实现isarray函数)
+    - [40. 实现isArray函数](#40-实现isarray函数)
 
 ## 1. 事件机制/Event Loop（进程，线程，协程，宏任务，微任务）
 
@@ -877,7 +877,7 @@ function identity<T>(arg: T): T {
 }
 ```
 
-### 39. 实现isArray函数
+### 40. 实现isArray函数
 
 ```js
 // MDN Polyfill
